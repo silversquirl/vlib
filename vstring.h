@@ -99,6 +99,7 @@ void vs_free(vstring s) {
 }
 
 VSTRING_SIZE_T vs_len(vstring s) {
+	if (!s) return 0;
 	return ((VSTRING_SIZE_T *)s)[-1];
 }
 
