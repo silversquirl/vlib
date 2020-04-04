@@ -13,8 +13,9 @@
 typedef char *vstring;
 
 // Creation and deletion
-vstring vs_new(char *str);
-vstring vs_new_n(char *buf, VSTRING_SIZE_T len);
+vstring vs_new(const char *str);
+vstring vs_new_n(const char *buf, VSTRING_SIZE_T len);
+vstring vs_alloc(VSTRING_SIZE_T len);
 void vs_free(vstring s);
 
 // Querying
@@ -74,7 +75,7 @@ static void _vs_set_len(vstring s, VSTRING_SIZE_T len) {
 static vstring _vs_resize(vstring s, VSTRING_SIZE_T len) {
 	// Allocate rather than reallocating if s is NULL
 	if (s) s -= sizeof (VSTRING_SIZE_T);
-	else len += sizeof (VSTRING_SIZE_T);
+	len += sizeof (VSTRING_SIZE_T);
 
 	s = VSTRING_ALLOC(s, len);
 	s += sizeof (VSTRING_SIZE_T);
@@ -83,14 +84,18 @@ static vstring _vs_resize(vstring s, VSTRING_SIZE_T len) {
 }
 
 // EXTERNAL
-vstring vs_new(char *str) {
+vstring vs_new(const char *str) {
 	return vs_new_n(str, VSTRING_STRLEN(str));
 }
 
-vstring vs_new_n(char *buf, VSTRING_SIZE_T len) {
+vstring vs_new_n(const char *buf, VSTRING_SIZE_T len) {
 	vstring s = _vs_resize(NULL, len);
 	VSTRING_MEMCPY(s, buf, len);
 	return s;
+}
+
+vstring vs_alloc(VSTRING_SIZE_T len) {
+	return _vs_resize(NULL, len);
 }
 
 void vs_free(vstring s) {
