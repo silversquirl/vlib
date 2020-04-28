@@ -25,7 +25,7 @@ VSTRING_SIZE_T vs_len(vstring s);
 vstring vs_append(vstring s, vstring other);
 vstring vs_append_c(vstring s, char *str);
 vstring vs_append_n(vstring s, char *buf, VSTRING_SIZE_T len);
-void vs_shrink(vstring s, VSTRING_SIZE_T new_len);
+void vs_resize(vstring s, VSTRING_SIZE_T new_len);
 
 #endif // VSTRING_HDR_INCLUDED
 
@@ -72,30 +72,19 @@ static void _vs_set_len(vstring s, VSTRING_SIZE_T len) {
 	((VSTRING_SIZE_T *)s)[-1] = len;
 }
 
-static vstring _vs_resize(vstring s, VSTRING_SIZE_T len) {
-	// Allocate rather than reallocating if s is NULL
-	if (s) s -= sizeof (VSTRING_SIZE_T);
-	len += sizeof (VSTRING_SIZE_T);
-
-	s = VSTRING_ALLOC(s, len);
-	s += sizeof (VSTRING_SIZE_T);
-	_vs_set_len(s, len);
-	return s;
-}
-
 // EXTERNAL
 vstring vs_new(const char *str) {
 	return vs_new_n(str, VSTRING_STRLEN(str));
 }
 
 vstring vs_new_n(const char *buf, VSTRING_SIZE_T len) {
-	vstring s = _vs_resize(NULL, len);
+	vstring s = vs_resize(NULL, len);
 	VSTRING_MEMCPY(s, buf, len);
 	return s;
 }
 
 vstring vs_alloc(VSTRING_SIZE_T len) {
-	return _vs_resize(NULL, len);
+	return vs_resize(NULL, len);
 }
 
 void vs_free(vstring s) {
@@ -116,12 +105,20 @@ vstring vs_append_c(vstring s, char *str) {
 }
 vstring vs_append_n(vstring s, char *buf, VSTRING_SIZE_T len) {
 	VSTRING_SIZE_T oldl = vs_len(s);
-	s = _vs_resize(s, oldl + len);
+	s = vs_resize(s, oldl + len);
 	VSTRING_MEMCPY(s + oldl, buf, len);
 	return s;
 }
-void vs_shrink(vstring s, VSTRING_SIZE_T new_len) {
-	if (new_len < vs_len(s)) _vs_set_len(s, new_len);
+vstring vs_resize(vstring s, VSTRING_SIZE_T len) {
+	// Allocate rather than reallocating if s is NULL
+	if (s) s -= sizeof (VSTRING_SIZE_T);
+	len += sizeof (VSTRING_SIZE_T);
+
+	s = VSTRING_ALLOC(s, len);
+	s += sizeof (VSTRING_SIZE_T);
+	_vs_set_len(s, len);
+	return s;
 }
+
 
 #endif // VSTRING_IMPL
