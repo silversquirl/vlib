@@ -70,6 +70,7 @@ vstring vs_resize(vstring s, VSTRING_SIZE_T new_len);
 // INTERNAL
 static void _vs_set_len(vstring s, VSTRING_SIZE_T len) {
 	((VSTRING_SIZE_T *)s)[-1] = len;
+	s[len] = 0; // NUL terminate
 }
 
 // EXTERNAL
@@ -111,10 +112,12 @@ vstring vs_append_n(vstring s, char *buf, VSTRING_SIZE_T len) {
 }
 vstring vs_resize(vstring s, VSTRING_SIZE_T len) {
 	// Allocate rather than reallocating if s is NULL
+	size_t alloc = len;
 	if (s) s -= sizeof (VSTRING_SIZE_T);
-	len += sizeof (VSTRING_SIZE_T);
+	alloc += sizeof (VSTRING_SIZE_T);
+	alloc++; // NUL terminator
 
-	s = VSTRING_ALLOC(s, len);
+	s = VSTRING_ALLOC(s, alloc);
 	s += sizeof (VSTRING_SIZE_T);
 	_vs_set_len(s, len);
 	return s;
