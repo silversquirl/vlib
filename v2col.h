@@ -17,6 +17,12 @@ struct v2seg {
 	v2v start, end;
 };
 
+// Circle
+struct v2circ {
+	v2v center;
+	v2s radius;
+};
+
 // Convex polygon
 struct v2poly {
 	unsigned sides;
@@ -42,7 +48,9 @@ void v2_move_poly(struct v2poly *poly, v2v delta) {
 }
 
 // Collision detection
+_Bool v2col_circ2circ(struct v2circ a, struct v2circ b);
 _Bool v2col_poly2poly(struct v2poly *a, struct v2poly *b);
+_Bool v2col_circ2poly(struct v2circ a, struct v2poly *b);
 
 #endif
 
@@ -65,6 +73,11 @@ struct v2poly *v2poly_n(unsigned sides, ...) {
 	return p;
 }
 
+_Bool v2col_circ2circ(struct v2circ a, struct v2circ b) {
+	v2s distance = a.radius + b.radius;
+	return v2mag2(b.center - a.center) <= distance*distance;
+}
+
 // Projects the polygon onto the axis
 // x is min, y is max
 static v2v _v2_project_poly(v2v axis, struct v2poly *poly) {
@@ -75,6 +88,13 @@ static v2v _v2_project_poly(v2v axis, struct v2poly *poly) {
 		if (x > max) max = x;
 	}
 	return v2v(min, max);
+}
+
+static v2v _v2_project_circ(v2v axis, struct v2circ circ) {
+	v2s m = v2mag(axis);
+	v2s c = v2dot(axis, circ.center);
+	v2s r = m*circ.radius;
+	return v2v(c - r, c + r);
 }
 
 // Checks if the polygon's projection onto the axis intersects with the existing projection
@@ -114,6 +134,34 @@ static _Bool _v2_poly2poly_sat(struct v2poly *a, struct v2poly *b) {
 _Bool v2col_poly2poly(struct v2poly *a, struct v2poly *b) {
 	// We use the Separating Axis Theorem (SAT) to determine collisions between convex polygons
 	return _v2_poly2poly_sat(a, b) && _v2_poly2poly_sat(b, a);
+}
+
+_Bool v2col_circ2poly(struct v2circ circ, struct v2poly *poly) {
+	// SAT again but a bit different because circle
+	for (unsigned i = 0; i < poly->sides; i++) {
+		v2v from = poly->points[i], to = poly->points[(i+1) % poly->sides];
+		v2v axis = I * (to-from);
+		v2v proj = _v2_project_circ(axis, circ);
+		if (!_v2_project_poly_collides(axis, proj, poly)) return 0;
+	}
+
+	// Find the circle's axis
+	v2v axis = poly->points[0] - circ.center, axis2;
+	v2s distance = v2mag2(axis), distance2;
+	for (unsigned i = 1; i < poly->sides; i++) {
+		axis2 = poly->points[i] - circ.center;
+		distance2 = v2mag2(axis2);
+		if (distance2 < distance) {
+			distance = distance2;
+			axis = axis2;
+		}
+	}
+
+	// Test the circle's axis
+	v2v proj = _v2_project_circ(axis, circ);
+	if (!_v2_project_poly_collides(axis, proj, poly)) return 0;
+
+	return 1;
 }
 
 #endif
