@@ -47,6 +47,15 @@ _Bool v2col_circ2circ(struct v2circ a, struct v2circ b);
 _Bool v2col_poly2poly(struct v2poly *a, struct v2poly *b);
 _Bool v2col_circ2poly(struct v2circ a, struct v2poly *b);
 
+// Raycasting
+struct v2ray {
+	v2v start, direction;
+};
+
+// Raycasting functions return a positive finite distance to the shape, or NAN if the ray does not intersect the shape
+v2s v2col_ray2circ(struct v2ray r, struct v2circ circ);
+v2s v2col_ray2poly(struct v2ray r, struct v2poly *poly);
+
 #endif
 
 #ifdef V2COL_IMPL
@@ -68,6 +77,7 @@ struct v2poly *v2poly_n(unsigned sides, ...) {
 	return p;
 }
 
+// Collision {{{
 _Bool v2col_circ2circ(struct v2circ a, struct v2circ b) {
 	v2s distance = a.radius + b.radius;
 	return v2mag2(b.center - a.center) <= distance*distance;
@@ -158,5 +168,38 @@ _Bool v2col_circ2poly(struct v2circ circ, struct v2poly *poly) {
 
 	return 1;
 }
+// }}}
+
+// Raycasting {{{
+v2s v2col_ray2circ(struct v2ray r, struct v2circ circ) {
+	// Translate so the ray is at the origin
+	circ.center -= r.start;
+
+	// Project circle centre
+	v2s proj = v2dot(r.direction, circ.center);
+	if (proj < -circ.radius) return NAN;
+
+	// Inverse magnitude squared
+	v2s mag2 = v2mag2(r.direction);
+	v2s inv_mag2 = 1/mag2;
+
+	// If distance to center > radius, no collision
+	v2s dist2 = v2mag2(circ.center - proj*r.direction*inv_mag2);
+	v2s rad2 = circ.radius*circ.radius;
+	if (dist2 > rad2) return NAN;
+
+	// Else, we calculate the distance between the projected point and the collision using
+	// Pythagoras' theorem and subtract it from the projected distance
+	v2s delta = sqrt((rad2 - dist2) * mag2);
+	// If the ray begins inside the circle, we need to flip the direction
+	if (v2mag2(circ.center) < rad2) delta = -delta;
+	proj -= delta;
+	if (proj < 0) return NAN;
+
+	return proj*inv_mag2;
+}
+
+//v2s v2col_ray2poly(struct v2ray r, v2poly poly);
+// }}}
 
 #endif

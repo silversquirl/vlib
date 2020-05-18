@@ -11,6 +11,7 @@
 
 void init(void);
 void move(v2v v);
+void set(v2v v);
 _Bool collide(void);
 void draw(SDL_Renderer *ren);
 
@@ -34,11 +35,25 @@ int main() {
 				return 0;
 
 			case SDL_MOUSEMOTION:
-				if (ev.motion.state & SDL_BUTTON_LMASK) {
-					move(v2v(ev.motion.xrel/100.0, -ev.motion.yrel/100.0));
+#ifndef ALL_MOVEMENT
+				if (!(ev.motion.state & SDL_BUTTON_LMASK)) break;
+#endif
+#ifdef MOVE_CONST
+				move(_v2conj(v2v(ev.motion.x, ev.motion.y) - v2draw_translation(ren)) / 100.0);
+#else
+				move(v2v(ev.motion.xrel, -ev.motion.yrel) / 100.0);
+#endif
+				collides = collide();
+				break;
+
+#ifdef SET
+			case SDL_MOUSEBUTTONDOWN:
+				if (ev.button.button == SDL_BUTTON_LEFT) {
+					set(_v2conj(v2v(ev.button.x, ev.motion.y) - v2draw_translation(ren)) / 100.0);
 					collides = collide();
 				}
 				break;
+#endif
 			}
 		}
 
