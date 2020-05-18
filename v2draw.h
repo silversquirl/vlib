@@ -30,12 +30,6 @@ void v2draw_ray(SDL_Renderer *ren, struct v2ray ray);
 
 #include <complex.h>
 
-#ifdef V2_SINGLE_PRECISION
-#define _v2conj conjf
-#else
-#define _v2conj conj
-#endif
-
 v2v v2draw_translation(SDL_Renderer *ren) {
 	int w, h;
 	SDL_GetRendererOutputSize(ren, &w, &h);
@@ -44,7 +38,7 @@ v2v v2draw_translation(SDL_Renderer *ren) {
 
 void v2draw_circ(SDL_Renderer *ren, struct v2circ circ) {
 	int rad = circ.radius * V2DRAW_SCALE;
-	v2v center = _v2conj(circ.center) * V2DRAW_SCALE + v2draw_translation(ren);
+	v2v center = v2conj(circ.center) * V2DRAW_SCALE + v2draw_translation(ren);
 
 	// Midpoint circle algorithm stolen from https://en.wikipedia.org/wiki/Midpoint_circle_algorithm#C_example
 	int x0 = v2x(center);
@@ -84,7 +78,7 @@ void v2draw_poly(SDL_Renderer *ren, struct v2poly *poly) {
 
 	v2v translate = v2draw_translation(ren);
 	for (unsigned i = 0; i < poly->sides; i++) {
-		v2v point = _v2conj(poly->points[i]) * V2DRAW_SCALE + translate;
+		v2v point = v2conj(poly->points[i]) * V2DRAW_SCALE + translate;
 		points[i] = (SDL_Point){v2x(point), v2y(point)};
 	}
 	points[count-1] = points[0];
@@ -97,14 +91,14 @@ void v2draw_ray(SDL_Renderer *ren, struct v2ray ray) {
 	SDL_GetRendererOutputSize(ren, &w, &h);
 	v2v translate = v2v(w, h) * 0.5;
 
-	v2v a = _v2conj(ray.start) * V2DRAW_SCALE + translate;
-	v2v b = _v2conj(ray.start + ray.direction * (w+h)) * V2DRAW_SCALE + translate;
+	v2v a = v2conj(ray.start) * V2DRAW_SCALE + translate;
+	v2v b = v2conj(ray.start + ray.direction * (w+h)) * V2DRAW_SCALE + translate;
 
 	SDL_RenderDrawLine(ren, v2x(a), v2y(a), v2x(b), v2y(b));
 }
 
 void v2draw_point(SDL_Renderer *ren, v2v v) {
-	v = _v2conj(v) * V2DRAW_SCALE + v2draw_translation(ren);
+	v = v2conj(v) * V2DRAW_SCALE + v2draw_translation(ren);
 	SDL_Rect r = {v2x(v)-V2DRAW_POINT_SIZE/2, v2y(v)-V2DRAW_POINT_SIZE/2, V2DRAW_POINT_SIZE, V2DRAW_POINT_SIZE};
 	SDL_RenderFillRect(ren, &r);
 }

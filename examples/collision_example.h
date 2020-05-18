@@ -39,7 +39,7 @@ int main() {
 				if (!(ev.motion.state & SDL_BUTTON_LMASK)) break;
 #endif
 #ifdef MOVE_CONST
-				move(_v2conj(v2v(ev.motion.x, ev.motion.y) - v2draw_translation(ren)) / 100.0);
+				move(v2conj(v2v(ev.motion.x, ev.motion.y) - v2draw_translation(ren)) / 100.0);
 #else
 				move(v2v(ev.motion.xrel, -ev.motion.yrel) / 100.0);
 #endif
@@ -49,7 +49,7 @@ int main() {
 #ifdef SET
 			case SDL_MOUSEBUTTONDOWN:
 				if (ev.button.button == SDL_BUTTON_LEFT) {
-					set(_v2conj(v2v(ev.button.x, ev.motion.y) - v2draw_translation(ren)) / 100.0);
+					set(v2conj(v2v(ev.button.x, ev.motion.y) - v2draw_translation(ren)) / 100.0);
 					collides = collide();
 				}
 				break;

@@ -65,4 +65,11 @@ static inline v2v v2rot(v2v v, v2s theta) {
 	return v * v2v(cos(theta), sin(theta));
 }
 
+// Complex conjugate (flips sign of Y axis)
+#ifdef V2_SINGLE_PRECISION
+#define v2conj conjf
+#else
+#define v2conj conj
+#endif
+
 #endif

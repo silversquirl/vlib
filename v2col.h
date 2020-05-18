@@ -199,7 +199,29 @@ v2s v2col_ray2circ(struct v2ray r, struct v2circ circ) {
 	return proj*inv_mag2;
 }
 
-//v2s v2col_ray2poly(struct v2ray r, v2poly poly);
+v2s v2col_ray2poly(struct v2ray r, struct v2poly *poly) {
+	// Normalize the ray
+	v2s inv_mag = 1/v2mag(r.direction);
+	r.direction = v2conj(r.direction * inv_mag);
+
+	// Check against every face. O(n)
+	v2s min = INFINITY;
+	for (unsigned i = 0; i < poly->sides; i++) {
+		v2v a = poly->points[i], b = poly->points[(i+1) % poly->sides];
+		// This transform changes the problem from a line intersection to an axis-intercept
+		a = (a - r.start) * r.direction;
+		b = (b - r.start) * r.direction;
+
+		v2v d = b - a;
+		v2s t = -v2y(a) / v2y(d);
+		if (t < 0 || t > 1) continue;
+		v2s x = v2x(a) + t*v2x(d);
+		if (x < 0) continue;
+		if (x < min) min = x;
+	}
+
+	return min * inv_mag;
+}
 // }}}
 
 #endif
