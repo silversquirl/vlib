@@ -12,11 +12,6 @@
 #include <math.h>
 #include "v2vec.h"
 
-// Line segment
-struct v2seg {
-	v2v start, end;
-};
-
 // Circle
 struct v2circ {
 	v2v center;
