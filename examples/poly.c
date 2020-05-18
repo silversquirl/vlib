@@ -13,7 +13,7 @@ void move(v2v v) {
 }
 
 _Bool collide(void) {
-	return v2col_poly2poly(poly1, poly2);
+	return v2poly2poly(poly1, poly2);
 }
 
 void draw(SDL_Renderer *ren) {

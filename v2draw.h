@@ -1,7 +1,7 @@
 /*
  * v2draw.h
  *
- * Debug drawing functions for v2col types. Depends on v2col.h, v2vec.h and SDL2, requires C11 or higher.
+ * Debug drawing functions for v2 types. Depends on v2.h and SDL2, requires C11 or higher.
  *
  * In one source file, define V2DRAW_IMPL before including this header.
  *
@@ -10,7 +10,7 @@
 #define V2DRAW_H
 
 #include "SDL2/SDL.h"
-#include "v2col.h"
+#include "v2.h"
 
 #ifndef V2DRAW_SCALE
 #define V2DRAW_SCALE 100

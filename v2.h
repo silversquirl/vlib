@@ -1,17 +1,85 @@
 /*
- * v2col.h
+ * v2.h
  *
- * 2D collision detection. Depends on v2vec.h, requires C11 or higher.
+ * 2D vector math and collision detection. Requires C11 or higher.
  *
- * In one source file, define V2COL_IMPL before including this header.
+ * Vectors are implemented on top of complex numbers. The advantage of this is that vector
+ * addition/subtraction and multiplication/division by scalars is automatically defined and
+ * uses normal arithmetic syntax.
+ *
+ * WARNING: Multiplying/dividing two vectors will use complex number semantics. You probably don't want that.
+ *
+ * In one source file, define V2_IMPL before including this header.
  *
  */
-#ifndef V2COL_H
-#define V2COL_H
+#ifndef V2_H
+#define V2_H
 
+#include <complex.h>
 #include <math.h>
-#include "v2vec.h"
 
+// Vectors {{{
+#ifdef V2_SINGLE_PRECISION
+typedef float v2s;
+typedef float _Complex v2v;
+#else
+typedef double v2s;
+typedef double _Complex v2v;
+#endif
+
+// Constructor
+#if defined(CMPLX)
+#define v2v(x, y) ((v2v)CMPLX(x, y))
+#else
+#define v2v(x, y) ((v2v)((x) + (y)*I))
+#endif
+
+// Components
+#ifdef V2_SINGLE_PRECISION
+#define v2x(v) crealf(v)
+#define v2y(v) cimagf(v)
+#else
+#define v2x(v) creal(v)
+#define v2y(v) cimag(v)
+#endif
+
+// Magnitude
+#ifdef V2_SINGLE_PRECISION
+#define v2mag(v) cabsf(v)
+#else
+#define v2mag(v) cabs(v)
+#endif
+// Squared magnitude
+static inline v2s v2mag2(v2v v) { 
+	v2s x = v2x(v), y = v2y(v);
+	return x*x + y*y;
+}
+
+// Normalize
+static inline v2v v2norm(v2v v) {
+	if (v == 0) return 0;
+	return v/v2mag(v);
+}
+
+// Dot product
+static inline v2s v2dot(v2v a, v2v b) {
+	return v2x(a)*v2x(b) + v2y(a)*v2y(b);
+}
+
+// Rotate by angle (radians)
+static inline v2v v2rot(v2v v, v2s theta) {
+	return v * v2v(cos(theta), sin(theta));
+}
+
+// Complex conjugate (flips sign of Y axis)
+#ifdef V2_SINGLE_PRECISION
+#define v2conj conjf
+#else
+#define v2conj conj
+#endif
+// }}}
+
+// Shapes {{{
 // Circle
 struct v2circ {
 	v2v center;
@@ -41,25 +109,25 @@ void v2_move_poly(struct v2poly *poly, v2v delta) {
 		poly->points[i] += delta;
 	}
 }
+// }}}
 
 // Collision detection
-_Bool v2col_circ2circ(struct v2circ a, struct v2circ b);
-_Bool v2col_poly2poly(struct v2poly *a, struct v2poly *b);
-_Bool v2col_circ2poly(struct v2circ a, struct v2poly *b);
+_Bool v2circ2circ(struct v2circ a, struct v2circ b);
+_Bool v2poly2poly(struct v2poly *a, struct v2poly *b);
+_Bool v2circ2poly(struct v2circ a, struct v2poly *b);
 
 // Raycasting
 struct v2ray {
 	v2v start, direction;
 };
-
 // Raycasting functions return a positive finite distance to the shape, or NAN if the ray does not intersect the shape
-v2s v2col_ray2circ(struct v2ray r, struct v2circ circ);
-v2s v2col_ray2poly(struct v2ray r, struct v2poly *poly);
+v2s v2ray2circ(struct v2ray r, struct v2circ circ);
+v2s v2ray2poly(struct v2ray r, struct v2poly *poly);
 
 #endif
 
-#ifdef V2COL_IMPL
-#undef V2COL_IMPL
+#ifdef V2_IMPL
+#undef V2_IMPL
 
 #include <stdarg.h>
 
@@ -78,7 +146,7 @@ struct v2poly *v2poly_n(unsigned sides, ...) {
 }
 
 // Collision {{{
-_Bool v2col_circ2circ(struct v2circ a, struct v2circ b) {
+_Bool v2circ2circ(struct v2circ a, struct v2circ b) {
 	v2s distance = a.radius + b.radius;
 	return v2mag2(b.center - a.center) <= distance*distance;
 }
@@ -136,12 +204,12 @@ static _Bool _v2_poly2poly_sat(struct v2poly *a, struct v2poly *b) {
 	return 1;
 }
 
-_Bool v2col_poly2poly(struct v2poly *a, struct v2poly *b) {
+_Bool v2poly2poly(struct v2poly *a, struct v2poly *b) {
 	// We use the Separating Axis Theorem (SAT) to determine collisions between convex polygons
 	return _v2_poly2poly_sat(a, b) && _v2_poly2poly_sat(b, a);
 }
 
-_Bool v2col_circ2poly(struct v2circ circ, struct v2poly *poly) {
+_Bool v2circ2poly(struct v2circ circ, struct v2poly *poly) {
 	// SAT again but a bit different because circle
 	for (unsigned i = 0; i < poly->sides; i++) {
 		v2v from = poly->points[i], to = poly->points[(i+1) % poly->sides];
@@ -171,7 +239,7 @@ _Bool v2col_circ2poly(struct v2circ circ, struct v2poly *poly) {
 // }}}
 
 // Raycasting {{{
-v2s v2col_ray2circ(struct v2ray r, struct v2circ circ) {
+v2s v2ray2circ(struct v2ray r, struct v2circ circ) {
 	// Translate so the ray is at the origin
 	circ.center -= r.start;
 
@@ -199,7 +267,7 @@ v2s v2col_ray2circ(struct v2ray r, struct v2circ circ) {
 	return proj*inv_mag2;
 }
 
-v2s v2col_ray2poly(struct v2ray r, struct v2poly *poly) {
+v2s v2ray2poly(struct v2ray r, struct v2poly *poly) {
 	// Normalize the ray
 	v2s inv_mag = 1/v2mag(r.direction);
 	r.direction = v2conj(r.direction * inv_mag);

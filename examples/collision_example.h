@@ -1,10 +1,9 @@
 #include <SDL2/SDL.h>
 
+#define V2_IMPL
 #define V2DRAW_IMPL
-#define V2COL_IMPL
-#include "../v2col.h"
+#include "../v2.h"
 #include "../v2draw.h"
-#include "../v2vec.h"
 
 #define trace(msg, offset) exit((fprintf(stderr, "%s:%d(%s) %s\n", __FILE__, __LINE__ + (offset), __func__, (msg)), 1))
 #define sdlerr(offset) trace(SDL_GetError(), offset)
