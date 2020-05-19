@@ -1,16 +1,11 @@
 # vlib
 
-A collection of simple C datastructures that I find myself reusing a lot.
-They're written as self-contained single-header files that can be dropped into any
-project, including ones that don't use the standard library.
-
-Custom allocation functions can be provided, and any required libc functions have
-an alternate implementaion supplied in the header, as well as the possibility to be
-user-defined through macros.
+This is a collection of single-file header libraries with minimal dependencies - some don't even require the standard library. All libraries are compatible with C99 or later.
 
 ## Included Headers
 
-- `vdlist.h` - An efficient doubly-linked list implementation - does not use recursion
-- `vslist.h` - An efficient singly-linked list implementation - does not use recursion
-- `vstring.h` - A bounded string type with O(1) length operations
-
+- `v2.h` - 2D vector and collision library. Requires libc
+- `v2draw.h` - Debug drawing for v2. Requires libc and v2
+- `vdlist.h` - An efficient doubly-linked list implementation - does not use recursion. No libc dependency
+- `vslist.h` - An efficient singly-linked list implementation - does not use recursion. No libc dependency
+- `vstring.h` - A bounded string type with O(1) length operations. No libc dependency
