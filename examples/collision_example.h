@@ -11,7 +11,12 @@
 void init(void);
 void move(v2v v);
 void set(v2v v);
+#ifdef MTV
+v2v collide(void);
+v2v mtv_origin(void);
+#else
 _Bool collide(void);
+#endif
 void draw(SDL_Renderer *ren);
 
 int main() {
@@ -24,7 +29,14 @@ int main() {
 	if (!ren) sdlerr(-1);
 
 	init();
-	_Bool collides = collide();
+#ifdef MTV
+	v2v mtv, origin;
+#define check_collide() mtv = collide(), origin = mtv_origin()
+#else
+	_Bool collides;
+#define check_collide() collides = collide()
+#endif
+	check_collide();
 
 	SDL_Event ev;
 	for (;;) {
@@ -42,14 +54,14 @@ int main() {
 #else
 				move(v2v(ev.motion.xrel, -ev.motion.yrel) / 100.0);
 #endif
-				collides = collide();
+				check_collide();
 				break;
 
 #ifdef SET
 			case SDL_MOUSEBUTTONDOWN:
 				if (ev.button.button == SDL_BUTTON_LEFT) {
 					set(v2conj(v2v(ev.button.x, ev.motion.y) - v2draw_translation(ren)) / 100.0);
-					collides = collide();
+					check_collide();
 				}
 				break;
 #endif
@@ -58,11 +70,22 @@ int main() {
 
 		SDL_SetRenderDrawColor(ren, 0, 0, 0, SDL_ALPHA_OPAQUE);
 		SDL_RenderClear(ren);
+
+#ifdef MTV
+		if (!v2nan(mtv)) {
+			SDL_SetRenderDrawColor(ren, 255, 0, 255, SDL_ALPHA_OPAQUE);
+			v2draw_vec(ren, origin, mtv);
+		} else {
+			SDL_SetRenderDrawColor(ren, 255, 255, 255, SDL_ALPHA_OPAQUE);
+		}
+#else
 		if (collides) {
 			SDL_SetRenderDrawColor(ren, 255, 0, 255, SDL_ALPHA_OPAQUE);
 		} else {
 			SDL_SetRenderDrawColor(ren, 255, 255, 255, SDL_ALPHA_OPAQUE);
 		}
+#endif
+
 		draw(ren);
 		SDL_RenderPresent(ren);
 	}

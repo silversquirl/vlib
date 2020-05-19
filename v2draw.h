@@ -22,6 +22,8 @@
 void v2draw_circ(SDL_Renderer *ren, struct v2circ circ);
 void v2draw_poly(SDL_Renderer *ren, struct v2poly *poly);
 void v2draw_ray(SDL_Renderer *ren, struct v2ray ray);
+void v2draw_vec(SDL_Renderer *ren, v2v start, v2v v);
+void v2draw_point(SDL_Renderer *ren, v2v v);
 
 #endif
 
@@ -95,6 +97,27 @@ void v2draw_ray(SDL_Renderer *ren, struct v2ray ray) {
 	v2v b = v2conj(ray.start + ray.direction * (w+h)) * V2DRAW_SCALE + translate;
 
 	SDL_RenderDrawLine(ren, v2x(a), v2y(a), v2x(b), v2y(b));
+}
+
+void v2draw_vec(SDL_Renderer *ren, v2v start, v2v v) {
+	v2v translate = v2draw_translation(ren);
+
+	start = v2conj(start) * V2DRAW_SCALE + translate;
+	v = v2conj(v) * V2DRAW_SCALE;
+	v2v end = start + v;
+
+	// Line
+	SDL_RenderDrawLine(ren, v2x(start), v2y(start), v2x(end), v2y(end));
+	// Arrow
+	v2v prong = v2v(0.15, 0.7);
+	v2v prong1 = start + prong*v*-I;
+	v2v prong2 = start + -v2conj(prong)*v*-I;
+	SDL_Point arrow[3] = {
+		{v2x(prong1), v2y(prong1)},
+		{v2x(end), v2y(end)},
+		{v2x(prong2), v2y(prong2)},
+	};
+	SDL_RenderDrawLines(ren, arrow, 3);
 }
 
 void v2draw_point(SDL_Renderer *ren, v2v v) {

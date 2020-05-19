@@ -71,6 +71,9 @@ static inline v2v v2rot(v2v v, v2s theta) {
 	return v * v2v(cos(theta), sin(theta));
 }
 
+// Check whether the vector is NAN
+#define v2nan(v) isnan(v2x(v))
+
 // Complex conjugate (flips sign of Y axis)
 #ifdef V2_SINGLE_PRECISION
 #define v2conj conjf
@@ -112,7 +115,9 @@ void v2_move_poly(struct v2poly *poly, v2v delta) {
 // }}}
 
 // Collision detection
-_Bool v2circ2circ(struct v2circ a, struct v2circ b);
+// Functions return a MTV (minimum translation vector), or NAN in the event of no collision
+// If shapes touch without intersecting, 0 is returned
+v2v v2circ2circ(struct v2circ a, struct v2circ b);
 _Bool v2poly2poly(struct v2poly *a, struct v2poly *b);
 _Bool v2circ2poly(struct v2circ a, struct v2poly *b);
 
@@ -146,9 +151,22 @@ struct v2poly *v2poly_n(unsigned sides, ...) {
 }
 
 // Collision {{{
-_Bool v2circ2circ(struct v2circ a, struct v2circ b) {
-	v2s distance = a.radius + b.radius;
-	return v2mag2(b.center - a.center) <= distance*distance;
+v2v v2circ2circ(struct v2circ a, struct v2circ b) {
+	// TODO: Go through all this maths and check for optimizations. There's probably
+	//       some stuff that can be improved, but it's 1am and I'm too tired right now
+
+	// Collision distance
+	v2s cd = a.radius + b.radius;
+	// Actual distance (squared)
+	v2s d2 = v2mag2(b.center - a.center);
+	if (d2 > cd*cd) return NAN;
+	if (d2 == cd*cd) return 0;
+
+	v2s d = sqrt(d2);
+	// Resize vector from b to a to the size of the intersection
+	v2v dir = (a.center - b.center)/d;
+	v2s sect = cd - d;
+	return dir * sect;
 }
 
 // Projects the polygon onto the axis
@@ -268,6 +286,8 @@ v2s v2ray2circ(struct v2ray r, struct v2circ circ) {
 }
 
 v2s v2ray2poly(struct v2ray r, struct v2poly *poly) {
+	// TODO: Go through this maths too, hopefully future vktec can find a way to remove the sqrt
+
 	// Normalize the ray
 	v2s inv_mag = 1/v2mag(r.direction);
 	r.direction = v2conj(r.direction * inv_mag);

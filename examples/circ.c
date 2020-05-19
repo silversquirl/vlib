@@ -1,3 +1,4 @@
+#define MTV
 #include "collision_example.h"
 
 struct v2circ circ1 = {v2v(0,0), 2};
@@ -9,8 +10,12 @@ void move(v2v v) {
 	circ1.center += v;
 }
 
-_Bool collide(void) {
+v2v collide(void) {
 	return v2circ2circ(circ1, circ2);
+}
+
+v2v mtv_origin(void) {
+	return circ1.center;
 }
 
 void draw(SDL_Renderer *ren) {
