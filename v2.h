@@ -118,7 +118,7 @@ void v2_move_poly(struct v2poly *poly, v2v delta) {
 // Functions return a MTV (minimum translation vector), or NAN in the event of no collision
 // If shapes touch without intersecting, 0 is returned
 v2v v2circ2circ(struct v2circ a, struct v2circ b);
-_Bool v2poly2poly(struct v2poly *a, struct v2poly *b);
+v2v v2poly2poly(struct v2poly *a, struct v2poly *b);
 _Bool v2circ2poly(struct v2circ a, struct v2poly *b);
 
 // Raycasting
@@ -203,7 +203,9 @@ static _Bool _v2_project_poly_collides(v2v axis, v2v other, struct v2poly *poly)
 	return 0;
 }
 
-static _Bool _v2_poly2poly_sat(struct v2poly *a, struct v2poly *b) {
+static v2v _v2_poly2poly_sat(struct v2poly *a, struct v2poly *b) {
+	v2v min_axis = NAN;
+	v2s min_overlap = INFINITY;
 	for (unsigned i = 0; i < a->sides; i++) {
 		v2v from = a->points[i], to = a->points[(i+1) % a->sides];
 
@@ -213,18 +215,30 @@ static _Bool _v2_poly2poly_sat(struct v2poly *a, struct v2poly *b) {
 		// matter here because it's just used as an axis
 		v2v axis = I * (to-from);
 
-		// Project polygon a against the axis
-		v2v proj = _v2_project_poly(axis, a);
-	
-		// Check if the polygons' projections collide
-		if (!_v2_project_poly_collides(axis, proj, b)) return 0;
+		// Project polygons a and b against the axis
+		v2v pa = _v2_project_poly(axis, a);
+		v2v pb = _v2_project_poly(axis, b);
+
+		// Check the collision
+		v2s minmax = v2y(pb) - v2x(pa);
+		v2s maxmin = v2y(pa) - v2x(pb);
+		v2s overlap = minmax < maxmin ? minmax : maxmin;
+
+		if (overlap < min_overlap) {
+			if (overlap < 0) return NAN;
+			min_overlap = overlap;
+			min_axis = axis;
+		}
 	}
-	return 1;
+	return min_axis*min_overlap / v2mag2(min_axis);
 }
 
-_Bool v2poly2poly(struct v2poly *a, struct v2poly *b) {
+v2v v2poly2poly(struct v2poly *a, struct v2poly *b) {
 	// We use the Separating Axis Theorem (SAT) to determine collisions between convex polygons
-	return _v2_poly2poly_sat(a, b) && _v2_poly2poly_sat(b, a);
+	v2v ab = _v2_poly2poly_sat(a, b);
+	if (v2nan(ab)) return ab;
+	v2v ba = _v2_poly2poly_sat(b, a);
+	return v2mag2(ab) < v2mag2(ba) ? ab : ba;
 }
 
 _Bool v2circ2poly(struct v2circ circ, struct v2poly *poly) {
