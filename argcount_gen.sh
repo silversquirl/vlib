@@ -1,6 +1,6 @@
 #!/bin/bash
 name="${1:-_v2_argcount}"
-size="${2:-512}"
+size="${2:-32}"
 
 macro0="#define ${name}_0(_1"
 macro1="#define $name(...) ${name}_0(__VA_ARGS__, $size"
