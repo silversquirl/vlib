@@ -1,4 +1,4 @@
-CC = clang -std=c11 -pedantic
+CC = clang -std=c99 -pedantic
 CFLAGS = -Wall -g $(shell sdl2-config --cflags)
 LDFLAGS = -lm $(shell sdl2-config --libs)
 
@@ -10,5 +10,5 @@ all: $(TARGETS)
 clean:
 	rm -f $(TARGETS)
 
-%: %.c collision_example.h ../v2col.h ../v2draw.h ../v2vec.h
+%: %.c collision_example.h ../v2.h ../v2draw.h
 	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)

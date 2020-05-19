@@ -5,7 +5,7 @@ struct v2poly *poly1;
 struct v2poly *poly2;
 
 void init(void) {
-	poly1 = v2poly(v2v(-1, -1), v2v(0, 1), v2v(1, -1));
+	poly1 = v2poly(v2v(-1, -1), v2v(-2, 1), v2v(2, 0), v2v(1, -1));
 	poly2 = v2poly(v2v(-1, 0), v2v(0, -1), v2v(1, 0));
 }
 

@@ -1,7 +1,7 @@
 /*
  * v2.h
  *
- * 2D vector math and collision detection. Requires C11 or higher.
+ * 2D vector math and collision detection. Requires C99 or higher.
  *
  * Vectors are implemented on top of complex numbers. The advantage of this is that vector
  * addition/subtraction and multiplication/division by scalars is automatically defined and
@@ -119,7 +119,7 @@ void v2_move_poly(struct v2poly *poly, v2v delta) {
 // If shapes touch without intersecting, 0 is returned
 v2v v2circ2circ(struct v2circ a, struct v2circ b);
 v2v v2poly2poly(struct v2poly *a, struct v2poly *b);
-_Bool v2circ2poly(struct v2circ a, struct v2poly *b);
+v2v v2circ2poly(struct v2circ a, struct v2poly *b);
 
 // Raycasting
 struct v2ray {
@@ -188,19 +188,15 @@ static v2v _v2_project_circ(v2v axis, struct v2circ circ) {
 	return v2v(c - r, c + r);
 }
 
-// Checks if the polygon's projection onto the axis intersects with the existing projection
-static _Bool _v2_project_poly_collides(v2v axis, v2v other, struct v2poly *poly) {
-	v2s omin = v2x(other), omax = v2y(other);
-	v2s min = INFINITY, max = -INFINITY, x;
-	for (unsigned i = 0; i < poly->sides; i++) {
-		x = v2dot(axis, poly->points[i]);
-		if (x >= omin && x <= omax) return 1;
-		if (x < min) min = x;
-		if (x > max) max = x;
-		if (omin >= min && omin <= max) return 1;
-		if (omax >= min && omax <= max) return 1;
+static inline v2v _v2_projection_overlap(v2v pa, v2v pb, v2v *axis) {
+	v2s minmax = v2y(pb) - v2x(pa);
+	v2s maxmin = v2y(pa) - v2x(pb);
+	if (minmax < maxmin) {
+		return minmax;
+	} else {
+		*axis *= -1;
+		return maxmin;
 	}
-	return 0;
 }
 
 static v2v _v2_poly2poly_sat(struct v2poly *a, struct v2poly *b) {
@@ -213,24 +209,22 @@ static v2v _v2_poly2poly_sat(struct v2poly *a, struct v2poly *b) {
 		// This is equivalent to a rotation by 90deg, as cos(90) = 0 and sin(90) = 1
 		// For a clockwise vertex order, this normal faces inwards. However, that doesn't
 		// matter here because it's just used as an axis
-		v2v axis = I * (to-from);
+		// TODO: try to find a way to avoid normalizing here, sqrt is expensive
+		v2v axis = v2norm(I * (to-from));
 
 		// Project polygons a and b against the axis
 		v2v pa = _v2_project_poly(axis, a);
 		v2v pb = _v2_project_poly(axis, b);
 
 		// Check the collision
-		v2s minmax = v2y(pb) - v2x(pa);
-		v2s maxmin = v2y(pa) - v2x(pb);
-		v2s overlap = minmax < maxmin ? minmax : maxmin;
-
+		v2s overlap = _v2_projection_overlap(pa, pb, &axis);
 		if (overlap < min_overlap) {
 			if (overlap < 0) return NAN;
 			min_overlap = overlap;
 			min_axis = axis;
 		}
 	}
-	return min_axis*min_overlap / v2mag2(min_axis);
+	return min_axis*min_overlap;
 }
 
 v2v v2poly2poly(struct v2poly *a, struct v2poly *b) {
@@ -238,35 +232,55 @@ v2v v2poly2poly(struct v2poly *a, struct v2poly *b) {
 	v2v ab = _v2_poly2poly_sat(a, b);
 	if (v2nan(ab)) return ab;
 	v2v ba = _v2_poly2poly_sat(b, a);
-	return v2mag2(ab) < v2mag2(ba) ? ab : ba;
+	return v2mag2(ab) < v2mag2(ba) ? -ab : ba;
 }
 
-_Bool v2circ2poly(struct v2circ circ, struct v2poly *poly) {
+v2v v2circ2poly(struct v2circ circ, struct v2poly *poly) {
 	// SAT again but a bit different because circle
+	v2v min_axis = NAN;
+	v2s min_overlap = INFINITY;
+
+	v2v circ_axis = NAN;
+	v2s circ_distance = INFINITY;
+
 	for (unsigned i = 0; i < poly->sides; i++) {
 		v2v from = poly->points[i], to = poly->points[(i+1) % poly->sides];
-		v2v axis = I * (to-from);
-		v2v proj = _v2_project_circ(axis, circ);
-		if (!_v2_project_poly_collides(axis, proj, poly)) return 0;
-	}
 
-	// Find the circle's axis
-	v2v axis = poly->points[0] - circ.center, axis2;
-	v2s distance = v2mag2(axis), distance2;
-	for (unsigned i = 1; i < poly->sides; i++) {
-		axis2 = poly->points[i] - circ.center;
-		distance2 = v2mag2(axis2);
-		if (distance2 < distance) {
-			distance = distance2;
-			axis = axis2;
+		// Find circle's axis
+		v2v axis = circ.center - from;
+		v2s distance = v2mag2(axis);
+		if (distance < circ_distance) {
+			circ_distance = distance;
+			// TODO: Here's another normalize it'd be nice to avoid
+			circ_axis = v2norm(axis);
+		}
+
+		// Test polygon face's axis
+		// TODO: More normalization
+		axis = v2norm(I * (to-from));
+		v2v pcirc = _v2_project_circ(axis, circ);
+		v2v ppoly = _v2_project_poly(axis, poly);
+
+		v2s overlap = _v2_projection_overlap(pcirc, ppoly, &axis);
+		if (overlap < min_overlap) {
+			if (overlap < 0) return NAN;
+			min_overlap = overlap;
+			min_axis = axis;
 		}
 	}
 
-	// Test the circle's axis
-	v2v proj = _v2_project_circ(axis, circ);
-	if (!_v2_project_poly_collides(axis, proj, poly)) return 0;
+	// Test circle's axis
+	v2v pcirc = _v2_project_circ(circ_axis, circ);
+	v2v ppoly = _v2_project_poly(circ_axis, poly);
 
-	return 1;
+	v2s overlap = _v2_projection_overlap(pcirc, ppoly, &circ_axis);
+	if (overlap < min_overlap) {
+		if (overlap < 0) return NAN;
+		min_overlap = overlap;
+		min_axis = circ_axis;
+	}
+
+	return min_axis*min_overlap;
 }
 // }}}
 
