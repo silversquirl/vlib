@@ -2,7 +2,7 @@ CC = clang -std=c99 -pedantic
 CFLAGS = -Wall -g $(shell sdl2-config --cflags)
 LDFLAGS = -lm $(shell sdl2-config --libs)
 
-TARGETS = circ poly circ2poly ray2circ ray2poly
+TARGETS = circ poly circ2poly ray2circ ray2poly close
 
 .PHONY: all clean
 all: $(TARGETS)
