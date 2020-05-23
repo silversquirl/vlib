@@ -19,6 +19,9 @@
 #define V2DRAW_POINT_SIZE 8
 #endif
 
+v2v v2draw_translation(SDL_Renderer *ren);
+
+void v2draw_box(SDL_Renderer *ren, struct v2box box);
 void v2draw_circ(SDL_Renderer *ren, struct v2circ circ);
 void v2draw_poly(SDL_Renderer *ren, struct v2poly *poly);
 void v2draw_ray(SDL_Renderer *ren, struct v2ray ray);
@@ -36,6 +39,15 @@ v2v v2draw_translation(SDL_Renderer *ren) {
 	int w, h;
 	SDL_GetRendererOutputSize(ren, &w, &h);
 	return v2v(w, h) * 0.5;
+}
+
+void v2draw_box(SDL_Renderer *ren, struct v2box box) {
+	v2v translation = v2draw_translation(ren);
+	v2v a = v2conj(box.a)*V2DRAW_SCALE + translation;
+	v2v b = v2conj(box.b)*V2DRAW_SCALE + translation;
+
+	SDL_Rect r = {v2x(a), v2y(a), v2x(b-a), v2y(b-a)};
+	SDL_RenderDrawRect(ren, &r);
 }
 
 void v2draw_circ(SDL_Renderer *ren, struct v2circ circ) {

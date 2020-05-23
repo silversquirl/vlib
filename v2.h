@@ -11,13 +11,48 @@
  *
  * In one source file, define V2_IMPL before including this header.
  *
+ * Authors:
+ *  - vktec
+ *
+ * Special thanks:
+ *  - mlugg, for being actually good at maths unlike me
+ *
  */
+
+/*
+ * This is free and unencumbered software released into the public domain.
+ *
+ * Anyone is free to copy, modify, publish, use, compile, sell, or
+ * distribute this software, either in source code form or as a compiled
+ * binary, for any purpose, commercial or non-commercial, and by any
+ * means.
+ *
+ * In jurisdictions that recognize copyright laws, the author or authors
+ * of this software dedicate any and all copyright interest in the
+ * software to the public domain. We make this dedication for the benefit
+ * of the public at large and to the detriment of our heirs and
+ * successors. We intend this dedication to be an overt act of
+ * relinquishment in perpetuity of all present and future rights to this
+ * software under copyright law.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+ * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+ * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * For more information, please refer to <http://unlicense.org/>
+ */
+
 #ifndef V2_H
 #define V2_H
 
 #include <complex.h>
 #include <math.h>
 #include <string.h>
+#include <limits.h>
 
 // Macro garbage {{{
 #if __STDC_VERSION__ >= 201112L
@@ -37,7 +72,7 @@ typedef float v2s;
 typedef double v2s;
 #endif
 
-#ifdef V2_OMIT_CLOSE
+#ifdef V2_NO_CLOSE
 #pragma message ("You have chosen to omit the v2close function. This may cause compile errors.")
 #else
 
@@ -51,7 +86,7 @@ _v2_cassert(sizeof (v2s) <= sizeof (long), "v2s does not fit into a long, which 
 static inline _Bool v2close(v2s a, v2s b, int acceptable_ulps) {
 	// See here for an explanation of how this works: https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/
 	if (signbit(a) != signbit(b)) return 0;
-	union {float f; int i;} ai = {a}, bi = {b};
+	union {v2s f; int i;} ai = {a}, bi = {b};
 	long ulps = ai.i - bi.i;
 	return ulps <= acceptable_ulps && ulps >= -acceptable_ulps;
 }
@@ -160,12 +195,44 @@ struct v2ray {
 v2s v2ray2circ(struct v2ray r, struct v2circ circ);
 v2s v2ray2poly(struct v2ray r, struct v2poly *poly);
 
+// Broad-phase collision detection {{{
+// Axis-aligned bounding box
+// a must be smaller than b in both dimensions
+struct v2box {
+	v2v a, b;
+};
+
+// Create bounding boxes for shapes
+struct v2box v2circbox(struct v2circ circ); // O(1)
+struct v2box v2polybox(struct v2poly *poly); // O(n)
+
+// Check AABB collision
+_Bool v2box2box(struct v2box a, struct v2box b);
+
+// Quadtree algorithm for subdividing the world into sections with higher resolution around objects.
+//
+// The ideal max height depends on the number and distribution of objects in your scene: more objects in a
+// small area requires a higher max height.
+//
+// Bear in mind that memory consumption grows exponentially with respect to the max height. A max height of 40
+// will consume 1TiB of RAM. A max height of 51 will overflow the physical address bus of an amd64 processor.
+//
+// For a max height of n, this representation has O(4^n) space complexity. While this is exponential, the
+// constant in this case is quite small. Additionally, a tree of height n can store up to 4^n nodes, so the
+// space complexity on the number of nodes is actually linear.
+struct v2qt;
+struct v2qt *v2qt(v2v dimensions, unsigned char height);
+void v2qt_populate(struct v2qt *t, struct v2box *boxes, size_t count);
+void v2qt_addbox(struct v2qt *t, struct v2box box);
+// }}}
+
 #endif
 
 #ifdef V2_IMPL
 #undef V2_IMPL
 
 #include <stdarg.h>
+#include <stdint.h>
 
 static inline struct v2poly *_v2_make_poly(unsigned sides) {
 	return malloc(offsetof(struct v2poly, points) + sizeof (v2v) * sides);
@@ -385,6 +452,182 @@ v2s v2ray2poly(struct v2ray r, struct v2poly *poly) {
 	}
 
 	return min * inv_mag;
+}
+// }}}
+
+// Broad-phase collision detection {{{
+struct v2box v2circbox(struct v2circ circ) {
+	v2v radv = v2v(circ.radius, circ.radius);
+	return (struct v2box){circ.center - radv, circ.center + radv};
+}
+
+struct v2box v2polybox(struct v2poly *poly) {
+	v2s minx = INFINITY, maxx = -INFINITY;
+	v2s miny = INFINITY, maxy = -INFINITY;
+
+	for (unsigned i = 0; i < poly->sides; i++) {
+		v2v point = poly->points[i];
+		v2s x = v2x(point), y = v2y(point);
+
+		if (x < minx) minx = x;
+		if (x > maxx) maxx = x;
+		if (y < miny) miny = y;
+		if (y > maxy) maxy = y;
+	}
+
+	return (struct v2box){v2v(minx, miny), v2v(maxx, maxy)};
+}
+
+_Bool v2box2box(struct v2box a, struct v2box b) {
+	if (v2x(a.b) < v2x(b.a) || v2x(b.b) < v2x(a.a)) return 0;
+	if (v2y(a.b) < v2y(b.a) || v2y(b.b) < v2y(a.a)) return 0;
+	return 1;
+}
+
+// Bit buffer functions
+static inline _Bool _v2_bbg(unsigned char *bb, unsigned char bit) {
+	return (bb[bit/CHAR_BIT] >> (bit%CHAR_BIT)) & 1;
+}
+static inline _Bool _v2_bbs(unsigned char *bb, unsigned char bit, _Bool value) {
+	// I can't think of a way to avoid this branch
+	// Luckily, the compiler will optimize it out for constant values when inlining
+	// Hooray for inlining! \o/
+	if (value) bb[bit/CHAR_BIT] |= 1 << (bit%CHAR_BIT);
+	else bb[bit/CHAR_BIT] &= ~(1 << (bit%CHAR_BIT));
+	return value;
+}
+
+// Math helpers
+#if defined(V2_NOGNU) || !defined(__GNUC__)
+// From this very nice page http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogDeBruijn
+static inline uint8_t _v2_isize(uint32_t x) {
+	static const uint8_t debruijn[32] = {
+		0, 9, 1, 10, 13, 21, 2, 29, 11, 14, 16, 18, 22, 25, 3, 30,
+		8, 12, 20, 28, 15, 17, 24, 7, 19, 27, 23, 6, 26, 5, 4, 31
+	};
+
+	x |= x >> 1;
+	x |= x >> 2;
+	x |= x >> 4;
+	x |= x >> 8;
+	x |= x >> 16;
+
+	return 1 + debruijn[(uint32_t)(x * 0x07C4ACDDU) >> 27];
+}
+#else
+#define _v2_isize(x) ((uint8_t)((CHAR_BIT * sizeof x) - __builtin_clz(x)))
+#endif
+
+#define _v2_floorlog4(x) ((_v2_isize(x)+1)/2 - 1) // May be undef for x = 0
+#define _v2_4exp(e) (1<<(2*(e)))
+
+// Quadtree with a fancy bitwise representation
+struct v2qt {
+	// Size of the world
+	v2v dim;
+	// Maximum number of objects in a cell where it is acceptable to stop subdividing
+	unsigned threshold;
+	// Maximum height of the tree
+	unsigned char height;
+	// Tree bit data (may or may not also have some not-bit-data at the end for storing lists of rects)
+	unsigned char bb[];
+};
+
+struct v2qt *v2qt(v2v dimensions, unsigned objects_per_cell, unsigned char max_tree_height) {
+	// The size of bb is composed of two parts:
+	// - One bit per non-leaf node
+	// - `threshold` pointers to v2box per leaf node
+	//
+	// The number of non-leaf nodes can be found using the sum k = 0 -> height-1 of 4^k
+	// The number of leaf nodes is simply 4^height
+	//
+	// h-1      4ʰ - 1
+	//  ∑  4ᵏ = ──────
+	// k=0      4  - 1
+	//
+	// 4ʰ - 1       4ʰ⁻³-1
+	// ────── / 8 = ──────
+	// 4  - 1       4  - 1
+	//
+	// One space optimization strategy could be to store an array of boxes and index into that instead
+	// of using pointers. This would likely reduce the memory consumption of the leaves' box arrays
+	// because one box will often intersect with multiple leaf nodes.
+
+	// One bit per non-leaf node
+	size_t bytes = !max_tree_height || (_v2_4exp(max_tree_height) - 3) / 3;
+	// One pointer per leaf node
+	// This is actually slightly more complex than the 4^height I quoted above: due to alignment we need
+	// to round up to the nearest multiple of sizeof (struct v2box *)
+	// We'll assume this size is a power of two. If it isn't, well, this code may run into some minor issues
+	bytes += ((_v2_4exp(max_tree_height) + 1) * sizeof (struct v2box *)) & ~(sizeof (struct v2box *) - 1);
+
+	struct v2qt *t = malloc(offsetof(struct v2qt, bb) + bytes);
+	t.dim = dimensions;
+	t.threshold = objects_per_cell;
+	t.height = max_tree_height;
+	return t;
+}
+
+static inline struct v2box **_v2qt_get_boxes(struct v2qt *t, uint32_t cell) {
+	cell /= 8; // bits -> bytes
+	cell /= sizeof (struct v2box *); // bytes -> v2boxes
+	return (struct v2box **)(t->bb)[cell];
+}
+
+static _Bool _v2qt_box_in_cell(struct v2qt *t, struct v2box box, uint32_t cell) {
+	// ty mlugg
+	uint8_t bottom_rank = _v2_floorlog4(3*cell + 1);
+	uint32_t bottom_width = _v2_4exp(bottom_rank);
+	uint32_t target = cell - (bottom_width - 1)/3;
+
+	v2v pos = 0;
+	v2s side_length = 1;
+	for (int rank = 1; rank <= bottom_rank; rank++) {
+		uint32_t width = _v2_4exp(rank);
+		uint32_t next = target*width / bottom_width;
+		uint8_t quad = val % 4;
+
+		side_length = 1/(1<<rank);
+		v2v dim = v2v((quad % 2) * side_length, (quad / 2) * side_length);
+		pos += dim;
+	}
+
+	pos = v2v(v2x(pos) * v2x(t->dim), v2y(pos) * v2y(t->dim));
+	v2v dim = side_length * t->dim;
+
+	return v2box2box(box, (struct v2box){pos, pos+dim});
+}
+
+void v2qt_populate(struct v2qt *t, struct v2box *boxes, size_t count) {
+	for (size_t i = 0; i < count; i++) {
+		v2qt_addbox(t, boxes[i]);
+	}
+
+	return t;
+}
+
+void v2qt_addbox(struct v2qt *t, struct v2box box) {
+	// ty mlugg
+	uint8_t bottom_rank = _v2_floorlog4(3*cell + 1);
+	uint32_t bottom_width = _v2_4exp(bottom_rank);
+	uint32_t target = cell - (bottom_width - 1)/3;
+
+	v2v pos = 0;
+	v2s side_length = 1;
+	for (int rank = 1; rank <= bottom_rank; rank++) {
+		uint32_t width = _v2_4exp(rank);
+		uint32_t next = target*width / bottom_width;
+		uint8_t quad = val % 4;
+
+		side_length = 1/(1<<rank);
+		v2v dim = v2v((quad % 2) * side_length, (quad / 2) * side_length);
+		pos += dim;
+	}
+
+	pos = v2v(v2x(pos) * v2x(t->dim), v2y(pos) * v2y(t->dim));
+	v2v dim = side_length * t->dim;
+
+	return v2box2box(box, (struct v2box){pos, pos+dim});
 }
 // }}}
 
