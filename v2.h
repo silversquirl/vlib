@@ -214,16 +214,22 @@ _Bool v2box2box(struct v2box a, struct v2box b);
 // The ideal max height depends on the number and distribution of objects in your scene: more objects in a
 // small area requires a higher max height.
 //
-// Bear in mind that memory consumption grows exponentially with respect to the max height. A max height of 40
-// will consume 1TiB of RAM. A max height of 51 will overflow the physical address bus of an amd64 processor.
+// Bear in mind that memory consumption grows exponentially with respect to the max height. Setting too
+// large of a max height may attempt an allocation of multiple terabytes of memory. Proceed with caution.
 //
 // For a max height of n, this representation has O(4^n) space complexity. While this is exponential, the
 // constant in this case is quite small. Additionally, a tree of height n can store up to 4^n nodes, so the
 // space complexity on the number of nodes is actually linear.
 struct v2qt;
-struct v2qt *v2qt(v2v dimensions, unsigned char height);
+struct v2qt *v2qt(v2v dimensions, unsigned objects_per_cell, unsigned char max_tree_height);
 void v2qt_populate(struct v2qt *t, struct v2box *boxes, size_t count);
 void v2qt_addbox(struct v2qt *t, struct v2box box);
+
+#ifndef V2_PRODUCTION
+void v2qt_printranks(struct v2qt *t);
+void v2qt_printleaves(struct v2qt *t);
+void v2qt_printdiagram(struct v2qt *t);
+#endif
 // }}}
 
 #endif
@@ -231,8 +237,41 @@ void v2qt_addbox(struct v2qt *t, struct v2box box);
 #ifdef V2_IMPL
 #undef V2_IMPL
 
+#include <inttypes.h>
+#include <signal.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define _v2_panic_(fmt, ...) (fprintf(stderr, "[%s:%d] " fmt "%c", __FILE__, __LINE__, __VA_ARGS__), raise(SIGABRT))
+#define _v2_panic(...) _v2_panic_(__VA_ARGS__, '\n')
+
+#ifdef V2_PRODUCTION
+#define _v2_assert(cond, ...)
+#else
+#define _v2_assert(cond, ...) ((cond) ? (void)0 : (void)_v2_panic("Assertion failed: " __VA_ARGS__))
+#endif
+
+#define _v2_bound_(idx, size, msg) _v2_assert((idx) < (size), msg ", %"PRIuMAX" >= %"PRIuMAX, (uintmax_t)(idx), (uintmax_t)(size))
+#define _v2_bound(idx, size) _v2_bound_(idx, size, "Index out of bounds")
+#define _v2_bound2d(x, y, width, height) (_v2_bound_(x, width, "X index out of bounds"), _v2_bound_(y, height, "Y index out of bounds"))
+
+#if __STDC_VERSION__ >= 201112L
+#define _v2_alignof _Alignof
+#else
+#define _v2_alignof(type) offsetof(struct {char x; type t;}, t)
+#endif
+static inline size_t _v2_alignto_(size_t addr, size_t align) {
+	addr--;
+	return addr + align - (addr % align);
+}
+#define _v2_alignto(addr, type) _v2_alignto_(addr, _v2_alignof(type))
+
+// Void pointer arithmetic
+// Use with an expression of the form `vp <op> <expr>`
+#define _v2_vpa(expr) ((void *)((char *)expr))
 
 static inline struct v2poly *_v2_make_poly(unsigned sides) {
 	return malloc(offsetof(struct v2poly, points) + sizeof (v2v) * sides);
@@ -485,10 +524,10 @@ _Bool v2box2box(struct v2box a, struct v2box b) {
 }
 
 // Bit buffer functions
-static inline _Bool _v2_bbg(unsigned char *bb, unsigned char bit) {
+static inline _Bool _v2_bbg(unsigned char *bb, uint32_t bit) {
 	return (bb[bit/CHAR_BIT] >> (bit%CHAR_BIT)) & 1;
 }
-static inline _Bool _v2_bbs(unsigned char *bb, unsigned char bit, _Bool value) {
+static inline _Bool _v2_bbs(unsigned char *bb, uint32_t bit, _Bool value) {
 	// I can't think of a way to avoid this branch
 	// Luckily, the compiler will optimize it out for constant values when inlining
 	// Hooray for inlining! \o/
@@ -499,7 +538,7 @@ static inline _Bool _v2_bbs(unsigned char *bb, unsigned char bit, _Bool value) {
 
 // Math helpers
 #if defined(V2_NOGNU) || !defined(__GNUC__)
-// From this very nice page http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogDeBruijn
+// From this very nice page: http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogDeBruijn
 static inline uint8_t _v2_isize(uint32_t x) {
 	static const uint8_t debruijn[32] = {
 		0, 9, 1, 10, 13, 21, 2, 29, 11, 14, 16, 18, 22, 25, 3, 30,
@@ -518,82 +557,232 @@ static inline uint8_t _v2_isize(uint32_t x) {
 #define _v2_isize(x) ((uint8_t)((CHAR_BIT * sizeof x) - __builtin_clz(x)))
 #endif
 
+#define _v2_2exp(e) (1<<(e))
 #define _v2_floorlog4(x) ((_v2_isize(x)+1)/2 - 1) // May be undef for x = 0
 #define _v2_4exp(e) (1<<(2*(e)))
 
 // Quadtree with a fancy bitwise representation
+struct _v2qt_boxlist {
+	struct v2box boxes[128];
+	struct _v2qt_boxlist *next;
+};
+struct _v2qt_leaf {
+	uint32_t boxes[16]; // TODO: might want to make this dynamic based on `threshold`
+	struct _v2qt_leaflistnode *next;
+};
 struct v2qt {
 	// Size of the world
 	v2v dim;
 	// Maximum number of objects in a cell where it is acceptable to stop subdividing
 	unsigned threshold;
 	// Maximum height of the tree
-	unsigned char height;
-	// Tree bit data (may or may not also have some not-bit-data at the end for storing lists of rects)
-	unsigned char bb[];
+	uint8_t height;
+	// Tree bit data
+	unsigned char *bb;
+	// Boxes in the tree (indexed into by `leaves`)
+	struct v2box *boxes;
+	// Leaves
+	struct _v2qt_leaf *leaves;
 };
 
+// Index space conversions
+static inline uint32_t _v2qt_r2g(uint8_t rank, uint32_t cell) { // Rank+cell to global index
+	return (_v2_4exp(rank + 1) - 1)/3 + cell;
+}
+static inline void _v2qt_g2r(uint32_t idx, uint8_t *rank, uint32_t *cell) { // Global index to rank+cell
+	*rank = _v2_floorlog4(3*idx + 1);
+	uint32_t width = _v2_4exp(*rank);
+	*cell = idx - (width - 1)/3;
+}
+
 struct v2qt *v2qt(v2v dimensions, unsigned objects_per_cell, unsigned char max_tree_height) {
-	// The size of bb is composed of two parts:
+	// A struct v2qt has a couple of arrays that need to be allocated with it. To ensure optimal cache
+	// locality, we allocate all of this in one malloc call. Disregarding alignment, that results in:
+	// - One struct v2qt
 	// - One bit per non-leaf node
-	// - `threshold` pointers to v2box per leaf node
+	// - One struct _v2qt_leaf per leaf node
 	//
-	// The number of non-leaf nodes can be found using the sum k = 0 -> height-1 of 4^k
+	// The number of non-leaf nodes can be found using the sum of the geometric series x_k = 4^k
 	// The number of leaf nodes is simply 4^height
 	//
 	// h-1      4ʰ - 1
 	//  ∑  4ᵏ = ──────
 	// k=0      4  - 1
 	//
-	// 4ʰ - 1       4ʰ⁻³-1
+	// 4ʰ - 1       4ʰ - 1
 	// ────── / 8 = ──────
-	// 4  - 1       4  - 1
-	//
-	// One space optimization strategy could be to store an array of boxes and index into that instead
-	// of using pointers. This would likely reduce the memory consumption of the leaves' box arrays
-	// because one box will often intersect with multiple leaf nodes.
+	// 4  - 1       8  * 3
 
 	// One bit per non-leaf node
-	size_t bytes = !max_tree_height || (_v2_4exp(max_tree_height) - 3) / 3;
-	// One pointer per leaf node
-	// This is actually slightly more complex than the 4^height I quoted above: due to alignment we need
-	// to round up to the nearest multiple of sizeof (struct v2box *)
-	// We'll assume this size is a power of two. If it isn't, well, this code may run into some minor issues
-	bytes += ((_v2_4exp(max_tree_height) + 1) * sizeof (struct v2box *)) & ~(sizeof (struct v2box *) - 1);
+	size_t bb_offset = _v2_alignto(sizeof (struct v2qt), unsigned char);
+	size_t bb_size = !max_tree_height || (_v2_4exp(max_tree_height) - 1) / (CHAR_BIT * 3);
+	// One struct _v2qt_leaf per leaf node
+	size_t leaves_offset = _v2_alignto(bb_offset + bb_size, struct _v2qt_leaf);
+	size_t leaves_size = _v2_4exp(max_tree_height) * sizeof (struct _v2qt_leaf);
 
-	struct v2qt *t = malloc(offsetof(struct v2qt, bb) + bytes);
-	t.dim = dimensions;
-	t.threshold = objects_per_cell;
-	t.height = max_tree_height;
+	void *mem = calloc(1, leaves_offset + leaves_size);
+	struct v2qt *t = mem;
+	*t = (struct v2qt){
+		dimensions,
+		objects_per_cell,
+		max_tree_height,
+		_v2_vpa(mem + bb_offset),
+		_v2_vpa(mem + leaves_offset),
+	};
+
 	return t;
 }
 
+// Quadtree debug print {{{
+#ifndef V2_PRODUCTION
+// Unicode box drawing stuffs {{{
+struct _v2_linemap {
+	int width, height;
+	unsigned char *lines;
+};
+
+static inline void _v2_lm_or(struct _v2_linemap lm, int x, int y, unsigned char dir) {
+	_v2_bound2d(x, y, lm.width, lm.height);
+	unsigned char value = lm.lines[x + y*lm.width] |= dir;
+	_v2_assert(value < 16, "Linemap cell at (%u, %u) set to invalid value, %u >= 16", x, y, value);
+}
+static void _v2_lm_box(struct _v2_linemap lm, struct v2box box) {
+	enum direction {
+		LEFT = 1,
+		RIGHT = 2,
+		UP = 4,
+		DOWN = 8,
+	};
+
+	int x1 = v2x(box.a), y1 = v2y(box.a);
+	int x2 = v2x(box.b), y2 = v2y(box.b);
+
+	// Corners
+	_v2_lm_or(lm, x1, y1, RIGHT|DOWN);
+	_v2_lm_or(lm, x1, y2, RIGHT|UP);
+	_v2_lm_or(lm, x2, y1, LEFT|DOWN);
+	_v2_lm_or(lm, x2, y2, LEFT|UP);
+
+	// Left/right
+	for (int x = x1+1; x < x2; x++) {
+		_v2_lm_or(lm, x, y1, RIGHT|LEFT);
+		_v2_lm_or(lm, x, y2, RIGHT|LEFT);
+	}
+
+	// Top/bottom
+	for (int y = y1+1; y < y2; y++) {
+		_v2_lm_or(lm, x1, y, UP|DOWN);
+		_v2_lm_or(lm, x2, y, UP|DOWN);
+	}
+}
+
+#include <stdio.h>
+void _v2_lm_blit(struct _v2_linemap lm) {
+	static const char *map[] = {" ", "╴", "╶", "─", "╵", "┘", "└", "┴", "╷", "┐", "┌", "┬", "│", "┤", "├", "┼"};
+	for (int y = 0; y < lm.height; y++) {
+		for (int x = 0; x < lm.width; x++) {
+			_v2_bound2d(x, y, lm.width, lm.height);
+			int dir = lm.lines[x + y*lm.width];
+			_v2_bound(dir, sizeof map / sizeof *map);
+			fputs(map[dir], stdout);
+		}
+		putchar('\n');
+	}
+}
+// }}}
+
+void v2qt_printranks(struct v2qt *t) {
+	for (uint8_t rank = 0; rank < t->height - 1; rank++) {
+		for (uint32_t cell = 0; cell < _v2_4exp(rank); cell++) {
+			putchar('0' + _v2_bbg(t->bb, _v2qt_r2g(rank, cell)));
+			for (uint32_t pad = 1; pad < _v2_4exp(t->height - rank - 2); pad++) {
+				putchar(' ');
+			}
+		}
+		putchar('\n');
+	}
+}
+
+void v2qt_printleaves(struct v2qt *t) {
+	for (uint32_t cell = 0; cell < _v2_4exp(t->height - 1); cell++) {
+		
+	}
+}
+
+static void _v2qt_printdiagram(struct v2qt *t, struct _v2_linemap lm, uint8_t rank, uint32_t cell, v2v pos) {
+	v2s side_scale = ldexp(1, -rank);
+	v2v dim = side_scale * v2v(lm.width-1, lm.height-1);
+	pos += v2v((cell & 1) * v2x(dim), ((cell>>1) & 1) * v2y(dim));
+
+	_v2_lm_box(lm, (struct v2box){pos, pos+dim});
+	uint32_t idx = _v2qt_r2g(rank, cell);
+	if (!_v2_bbg(t->bb, idx)) return;
+
+	if (++rank > t->height) return;
+
+	uint32_t offset = cell * 4;
+	for (int child = 0; child < 4; child++) {
+		_v2qt_printdiagram(t, lm, rank, offset + child, pos);
+	}
+}
+
+// Prints a diagram visualising the tree
+// Looks something like this:
+// ┌─┬─┬───┬───────┐
+// ├─┼─┤   │       │
+// ├─┴─┼───┤       │
+// │   │   │       │
+// ├───┴───┼───┬───┤
+// │       │   │   │
+// │       ├───┼───┤
+// │       │   │   │
+// └───────┴───┴───┘
+void v2qt_printdiagram(struct v2qt *t) {
+	int wscale = 2, hscale = 1;
+
+	int width = _v2_2exp(t->height-1);
+	int height = hscale*width;
+	width *= wscale;
+	width++, height++;
+
+	unsigned char lines[width*height];
+	memset(lines, 0, width*height);
+	struct _v2_linemap lm = {width, height, lines};
+
+	_v2qt_printdiagram(t, lm, 0, 0, 0);
+	_v2_lm_blit(lm);
+}
+#endif
+// }}}
+
+/*
 static inline struct v2box **_v2qt_get_boxes(struct v2qt *t, uint32_t cell) {
 	cell /= 8; // bits -> bytes
 	cell /= sizeof (struct v2box *); // bytes -> v2boxes
-	return (struct v2box **)(t->bb)[cell];
+	return ((struct v2box **)t->bb)[cell];
 }
+*/
 
-static _Bool _v2qt_box_in_cell(struct v2qt *t, struct v2box box, uint32_t cell) {
+static _Bool _v2qt_box_in_cell(struct v2qt *t, struct v2box box, uint32_t idx) {
 	// ty mlugg
-	uint8_t bottom_rank = _v2_floorlog4(3*cell + 1);
+	uint8_t bottom_rank = _v2_floorlog4(3*idx + 1);
 	uint32_t bottom_width = _v2_4exp(bottom_rank);
-	uint32_t target = cell - (bottom_width - 1)/3;
+	uint32_t cell = idx - (bottom_width - 1)/3;
 
 	v2v pos = 0;
-	v2s side_length = 1;
+	v2s side_scale;
 	for (int rank = 1; rank <= bottom_rank; rank++) {
 		uint32_t width = _v2_4exp(rank);
-		uint32_t next = target*width / bottom_width;
-		uint8_t quad = val % 4;
+		uint32_t next = cell*width / bottom_width;
+		uint8_t quad = next % 4;
 
-		side_length = 1/(1<<rank);
-		v2v dim = v2v((quad % 2) * side_length, (quad / 2) * side_length);
+		side_scale = ldexp(1, -rank);
+		v2v dim = v2v((quad % 2) * side_scale, (quad / 2) * side_scale);
 		pos += dim;
 	}
 
 	pos = v2v(v2x(pos) * v2x(t->dim), v2y(pos) * v2y(t->dim));
-	v2v dim = side_length * t->dim;
+	v2v dim = side_scale * t->dim;
 
 	return v2box2box(box, (struct v2box){pos, pos+dim});
 }
@@ -602,32 +791,78 @@ void v2qt_populate(struct v2qt *t, struct v2box *boxes, size_t count) {
 	for (size_t i = 0; i < count; i++) {
 		v2qt_addbox(t, boxes[i]);
 	}
+}
 
-	return t;
+static void _v2qt_addbox2leaf(struct v2qt *t, uint32_t cell, struct v2box box) {
+	// TODO
+}
+
+struct _v2qt_addbox_state {
+	struct v2qt *t;
+	struct v2box box;
+	uint32_t n_leaves;
+	int *boxes_per_leaf;
+};
+static void _v2qt_addbox(struct _v2qt_addbox_state s, uint8_t rank, uint32_t cell, v2v pos) {
+	// Calculate cell's box
+	v2s side_scale = ldexp(1, -rank);
+	v2v dim = side_scale * s.t->dim;
+	pos += v2v((cell & 1) * v2x(dim), ((cell>>1) & 1) * v2y(dim));
+	struct v2box cell_box = {pos, pos + dim};
+
+	// Check box intersection
+	if (!v2box2box(s.box, cell_box)) return;
+
+	if (rank+1 >= s.t->height) {
+		// Insert the box
+		_v2qt_addbox2leaf(s.t, cell, s.box);
+		return;
+	}
+
+	uint32_t idx = _v2_r2g(rank, cell);
+	// If the cell has already been split, we need to go deeper
+	if (!_v2_bbg(s.t->bb, idx)) {
+		// Otherwise, we have the option to stop here, but we need to check the threshold first
+		uint32_t len = 0;
+		struct _v2qt_leaf *leaf = s.t->leaves + cell*_v2_4exp(t->height - rank);
+		// Count full list nodes
+		while (leaf->next) {
+			len += sizeof leaf->boxes / sizeof *leaf->boxes;
+			leaf = leaf->next;
+		}
+		// Count fullness of last list node
+		for (int i = 0; i < sizeof leaf->boxes / sizeof *leaf->boxes; i++) {
+			if (leaf->boxes[i] == ~0) break;
+			len++
+		}
+
+		if (len < s.t.height) {
+			
+		}
+
+		// Split the cell
+		_v2_bbs(s.t->bb, idx, 1);
+	}
+
+	// Recurse to the next rank
+	rank++;
+	uint32_t offset = cell * 4;
+	for (int child = 0; child < 4; child++) {
+		_v2qt_addbox(s, rank, offset + child, pos);
+	}
 }
 
 void v2qt_addbox(struct v2qt *t, struct v2box box) {
-	// ty mlugg
-	uint8_t bottom_rank = _v2_floorlog4(3*cell + 1);
-	uint32_t bottom_width = _v2_4exp(bottom_rank);
-	uint32_t target = cell - (bottom_width - 1)/3;
+	struct _v2qt_addbox_state s;
 
-	v2v pos = 0;
-	v2s side_length = 1;
-	for (int rank = 1; rank <= bottom_rank; rank++) {
-		uint32_t width = _v2_4exp(rank);
-		uint32_t next = target*width / bottom_width;
-		uint8_t quad = val % 4;
+	s.t = t;
+	s.box = box;
 
-		side_length = 1/(1<<rank);
-		v2v dim = v2v((quad % 2) * side_length, (quad / 2) * side_length);
-		pos += dim;
-	}
+	s.n_leaves = _v2_4exp(t->height);
+	int boxes_per_leaf[s.n_leaves];
+	s.boxes_per_leaf = boxes_per_leaf;
 
-	pos = v2v(v2x(pos) * v2x(t->dim), v2y(pos) * v2y(t->dim));
-	v2v dim = side_length * t->dim;
-
-	return v2box2box(box, (struct v2box){pos, pos+dim});
+	_v2qt_addbox(s, 0, 0, 0);
 }
 // }}}
 
