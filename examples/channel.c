@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <threads.h>
 #include <unistd.h>
-#define VCHANNEL_H
+#define VCHANNEL_IMPL
 #include "../vchannel.h"
 
 struct thread_info {

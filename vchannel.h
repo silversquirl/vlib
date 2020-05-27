@@ -46,7 +46,7 @@ void *vch_recv(struct vch *ch);
 
 #endif
 
-#ifndef VCHANNEL_IMPL
+#ifdef VCHANNEL_IMPL
 #undef VCHANNEL_IMPL
 
 #include <stdatomic.h>
