@@ -86,7 +86,7 @@ int vset_get(struct vset *set, const char *str) {
 #endif
 	while (set->slots[hash]) {
 		if (!strcmp(str, set->slots[hash])) return hash;
-		if (++hash > set->size) hash = 0;
+		if (++hash >= set->size) hash = 0;
 #if VSET_THRESHOLD == 1
 		if (hash == start) break;
 #endif
@@ -99,7 +99,7 @@ static int _vset_put(struct vset *set, const char *str) {
 	hash %= set->size;
 	while (set->slots[hash]) {
 		if (!strcmp(set->slots[hash], str)) return hash;
-		if (++hash > set->size) hash = 0;
+		if (++hash >= set->size) hash = 0;
 	}
 	set->slots[hash] = str;
 	set->occupied++;

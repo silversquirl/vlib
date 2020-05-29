@@ -48,6 +48,7 @@ void *vtable_put(struct vtable **tbl, const char *key, void *val);
 #undef VTABLE_IMPL
 
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -82,6 +83,31 @@ struct vtable *vtable_new(int start_size) {
 	return tbl;
 }
 
+void vtable_printdebug(struct vtable *tbl) {
+	int seg = 0;
+	for (int i = 0; i < tbl->size; i++) {
+		if (tbl->slots[i].key) {
+			if (seg != i) {
+				if (seg == i-1) {
+					printf("[%d] EMPTY\n", seg);
+				} else {
+					printf("[%d..%d] EMPTY\n", seg, i-1);
+				}
+			}
+			printf("[%d] '%s'\n", i, tbl->slots[i].key);
+			seg = i+1;
+		}
+	}
+
+	if (seg != tbl->size) {
+		if (seg == tbl->size-1) {
+			printf("[%d] EMPTY\n", seg);
+		} else {
+			printf("[%d..%d] EMPTY\n", seg, tbl->size-1);
+		}
+	}
+}
+
 void *vtable_get(struct vtable *tbl, const char *key) {
 	unsigned long hash = VTABLE_HASH_FUNC(key);
 	hash %= tbl->size;
@@ -91,7 +117,7 @@ void *vtable_get(struct vtable *tbl, const char *key) {
 #endif
 	while (tbl->slots[hash].key) {
 		if (!strcmp(key, tbl->slots[hash].key)) return tbl->slots[hash].val;
-		if (++hash > tbl->size) hash = 0;
+		if (++hash >= tbl->size) hash = 0;
 #if VTABLE_THRESHOLD == 1
 		if (hash == start) break;
 #endif
@@ -104,7 +130,7 @@ static void *_vtable_put(struct vtable *tbl, struct _vtable_slot slot) {
 	hash %= tbl->size;
 	while (tbl->slots[hash].key) {
 		if (!strcmp(tbl->slots[hash].key, slot.key)) return tbl->slots[hash].val;
-		if (++hash > tbl->size) hash = 0;
+		if (++hash >= tbl->size) hash = 0;
 	}
 	tbl->slots[hash] = slot;
 	tbl->occupied++;
