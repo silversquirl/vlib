@@ -1,0 +1,135 @@
+#ifndef VTEST_H
+#define VTEST_H
+
+#include <inttypes.h>
+#include <stdio.h>
+#include <stdint.h>
+
+// Color codes {{{
+#define _vtest_color_black "0"
+#define _vtest_color_red "1"
+#define _vtest_color_green "2"
+#define _vtest_color_yellow "3"
+#define _vtest_color_blue "4"
+#define _vtest_color_magenta "5"
+#define _vtest_color_cyan "6"
+#define _vtest_color_white "7"
+
+#define _v_fg(color) "\x1b[3" _vtest_color_##color "m"
+#define _v_fg_bright(color) "\x1b[9" _vtest_color_##color "m"
+#define _v_bg(color) "\x1b[4" _vtest_color_##color "m"
+#define _v_bg_bright(color) "\x1b[10" _vtest_color_##color "m"
+#define _v_reset "\x1b[0m"
+// }}}
+
+#define _vmsg_in0(func, class_clr, class, fmt, ...) \
+	fprintf(stderr, \
+		_v_fg(class_clr) "[" class "]" \
+		_v_fg(green) "   %s" \
+		_v_reset " \t" fmt "%s", \
+		func, \
+		__VA_ARGS__)
+#define _vmsg_in(...) _vmsg_in0(__VA_ARGS__, "\n")
+#define _vmsg(...) _vmsg_in(__func__, __VA_ARGS__)
+
+enum {
+	VTEST_PASS,
+	VTEST_FAIL,
+	VTEST_SKIP,
+};
+
+#define vskip(...) return (void)(_vmsg(cyan, "SKIP", "" __VA_ARGS__), *_vtest_status = VTEST_SKIP)
+#define _vfail_in(func, ...) (_vmsg_in(func, red, "FAIL", __VA_ARGS__), *_vtest_status = VTEST_FAIL, 0)
+#define vfail(...) _vfail_in(__func__, __VA_ARGS__)
+
+// Assertions {{{
+#define vassert_msg(cond, ...) ((cond) || vfail(__VA_ARGS__))
+#define vassert(cond) vassert_msg(cond, #cond " == false")
+#define vassertn(cond) vassert_msg(!(cond), #cond " == true")
+
+#if __STDC_VERSION__ >= 201112L
+#define vassert_eq(a, b) _Generic((a), \
+	signed char:  vassert_eq_i(a, b), \
+	signed short: vassert_eq_i(a, b), \
+	signed int:   vassert_eq_i(a, b), \
+	signed long:  vassert_eq_i(a, b), \
+	\
+	unsigned char:  vassert_eq_u(a, b), \
+	unsigned short: vassert_eq_u(a, b), \
+	unsigned int:   vassert_eq_u(a, b), \
+	unsigned long:  vassert_eq_u(a, b), \
+	\
+	float:       vassert_eq_f(a, b), \
+	double:      vassert_eq_f(a, b), \
+	long double: vassert_eq_f(a, b), \
+	\
+	default: _vassert_eq(a, b))
+#else
+#define vassert_eq _vassert_eq
+#endif
+#define _vassert_eq(a, b) vassert_msg((a) == (b), "%s != %s", #a, #b)
+
+#define _vassert_wrap(func, a, b) func(a, b, #a, #b, __func__, _vtest_status)
+
+#define _vassert_typed_args const char *as, const char *bs, const char *func, int *_vtest_status
+
+static inline int _vassert_eq_i(intmax_t a, intmax_t b, _vassert_typed_args) {
+	return a == b || _vfail_in(func, "%s != %s   (%"PRIdMAX" != %"PRIdMAX")", as, bs, a, b);
+}
+#define vassert_eq_i(a, b) _vassert_wrap(_vassert_eq_i, a, b)
+
+static inline int _vassert_eq_u(uintmax_t a, uintmax_t b, _vassert_typed_args) {
+	return a == b || _vfail_in(func, "%s != %s   (%"PRIuMAX" != %"PRIuMAX")", as, bs, a, b);
+}
+#define vassert_eq_u(a, b) _vassert_wrap(_vassert_eq_u, a, b)
+
+static inline int _vassert_eq_f(long double a, long double b, _vassert_typed_args) {
+	return a == b || _vfail_in(func, "%s != %s   (%Lg != %Lg)", as, bs, a, b);
+}
+#define vassert_eq_f(a, b) _vassert_wrap(_vassert_eq_f, a, b)
+// }}}
+
+typedef void (*vtest_func_t)(int *_vtest_status);
+#define VTEST(name) void name(int *_vtest_status)
+#define VTESTS_BEGIN \
+	int main() { \
+		vtest_func_t tests[] = {
+#define VTESTS_END \
+		0}; \
+		int result[3] = {0}, total = 0; \
+		for (vtest_func_t *func = tests; *func; func++) { \
+			int status = VTEST_PASS; \
+			(*func)(&status); \
+			result[status]++; \
+			total++; \
+			if (status == VTEST_PASS) _vmsg(green, "PASS", ""); \
+		} \
+		fprintf(stderr, "\n" \
+			_v_reset "[TOTAL %d TESTS]\n" \
+			_v_fg_bright(green) "%2d passed\n" \
+			_v_fg_bright(red) "%2d failed\n" \
+			_v_fg_bright(cyan) "%2d skipped\n" \
+			_v_reset, \
+			total, \
+			result[VTEST_PASS], \
+			result[VTEST_FAIL], \
+			result[VTEST_SKIP]); \
+		return result[VTEST_FAIL]; \
+	}
+
+// Compile-time assertions {{{
+#if __STDC_VERSION__ >= 201112L
+#define _vtest_cassert _Static_assert
+#else
+#define _vmath_cassert(expr, msg) struct _vmath_cassert##__LINE__ { int a : (expr) ? 1 : -1; }
+#endif
+
+#if __STDC_VERSION__ >= 201112L
+#define V_ENSURE_TYPE(expr, type) _Generic((expr), type: (void)0)
+#else
+#warning "Pre-C11, V_ENSURE_TYPE is quite inaccurate, as it can only check the size"
+#define V_ENSURE_TYPE(expr, type) _vtest_cassert(sizeof (expr) == sizeof (type), "Size of types do not match")
+#endif
+// }}}
+
+#endif
