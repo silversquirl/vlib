@@ -16,10 +16,10 @@ VTEST(test_set) {
 	if (!d) vskip();
 
 	vassert(vdict_s2s_set(d, "foo", "bar"));
-	vassertn(vdict_s2s_set(d, "foo", "baz"));
-
 	vassert(vdict_s2s_set(d, "bar", "quux"));
+
 	vassertn(vdict_s2s_set(d, "bar", "frob"));
+	vassertn(vdict_s2s_set(d, "foo", "baz"));
 }
 
 VTEST(test_del) {
@@ -104,6 +104,48 @@ VTEST(test_rehash) {
 	vassert_eq(d->i_capacity, 64);
 }
 
+VTEST(test_iter) {
+	const char *order[] = {
+		"foo", "baz",
+		"bar", "frob",
+
+		"1", "one",
+		"2", "two",
+		"3", "three",
+		"4", "four",
+		"5", "five",
+		"6", "six",
+		"7", "seven",
+		"8", "eight",
+
+		"9", "nine",
+		"10", "ten",
+		"11", "eleven",
+		"12", "twelve",
+		"13", "thirteen",
+		"14", "fourteen",
+		"15", "fifteen",
+		"16", "sixteen",
+		NULL, NULL,
+	};
+	const char **p = order;
+
+	vdict_iter (s2s, d, const char *k, const char *v) {
+		if (!*p) {
+			vfail("Reached end of array too early");
+			return;
+		}
+
+		vassert_eq_s(k, *p++);
+		vassert_eq_s(v, *p++);
+	}
+
+	if (*p) {
+		vfail("Reached end of dict too early");
+		return;
+	}
+}
+
 VTEST(test_repack) {
 	if (!d) vskip();
 
@@ -166,6 +208,7 @@ VTESTS_BEGIN
 	test_del,
 	test_get,
 	test_rehash,
+	test_iter,
 	test_repack,
 	test_free,
 VTESTS_END

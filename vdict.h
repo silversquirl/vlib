@@ -59,6 +59,7 @@ static inline uintmax_t vhash_string(const char *s) {
 
 #define vdict_decl(linkage, name, key_t, val_t) \
 	vdict(name); \
+	struct _vdict_iter__##name; \
 	linkage vdict(name) *vdict_##name##_new(void); \
 	linkage void vdict_##name##_free(vdict(name) *d); \
 	linkage int vdict_##name##_set(vdict(name) *d, key_t k, val_t v); \
@@ -239,6 +240,29 @@ static inline uintmax_t vhash_string(const char *s) {
 		return &(d->entries + *idx - 1)->v; \
 	} \
 	\
+	struct _vdict_iter_state__##name { \
+		vdict(name) *d; \
+		uint32_t iter; \
+		struct _vdict_entry__##name *entry; \
+		_Bool flag0, flag1; \
+	}; \
+	\
+	linkage _Bool _vdict_##name##_next(struct _vdict_iter_state__##name *st) { \
+		do { \
+			if (st->iter >= st->d->size) return 0; \
+			st->entry = st->d->entries + st->iter++; \
+		} while (st->entry->removed); \
+		return 1; \
+	} \
+	\
 	typedef int _vdict_semicolon_forcer_##__LINE__
+
+#define vdict_iter(name, dict, key_decl, val_decl) \
+	for (struct _vdict_iter_state__##name _vdict_iter = {(dict), 0}; \
+		_vdict_##name##_next(&_vdict_iter); \
+		_vdict_iter.flag0 = _vdict_iter.flag1 = 0 \
+	) \
+		for (key_decl = _vdict_iter.entry->k; !_vdict_iter.flag0; _vdict_iter.flag0++) \
+			for (val_decl = _vdict_iter.entry->v; !_vdict_iter.flag1; _vdict_iter.flag1++)
 
 #endif
