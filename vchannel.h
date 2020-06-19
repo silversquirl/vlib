@@ -109,7 +109,6 @@ void vch_send(struct vch *ch, void *item) {
 	_vch_tp(cnd_signal(&ch->empty));
 	_vch_tp(mtx_unlock(&ch->lock));
 
-err:
 	return;
 }
 
