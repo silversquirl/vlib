@@ -57,13 +57,13 @@ static inline uintmax_t vhash_string(const char *s) {
 
 #define vdict(name) struct _vdict__##name
 
-#define vdict_decl(name, key_t, val_t) \
+#define vdict_decl(linkage, name, key_t, val_t) \
 	vdict(name); \
-	vdict(name) *vdict_##name##_new(void); \
-	void vdict_##name##_free(vdict(name) *d); \
-	int vdict_##name##_set(vdict(name) *d, key_t k, val_t v); \
-	int vdict_##name##_del(vdict(name) *d, key_t k); \
-	val_t *vdict_##name##_get(vdict(name) *d, key_t k)
+	linkage vdict(name) *vdict_##name##_new(void); \
+	linkage void vdict_##name##_free(vdict(name) *d); \
+	linkage int vdict_##name##_set(vdict(name) *d, key_t k, val_t v); \
+	linkage int vdict_##name##_del(vdict(name) *d, key_t k); \
+	linkage val_t *vdict_##name##_get(vdict(name) *d, key_t k)
 
 // For types where the hash function is guaranteed to be collision-free (eg. float, int), eq_func may be vdict_always
 // For strings, it should be !strcmp or similar

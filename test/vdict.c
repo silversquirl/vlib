@@ -2,6 +2,7 @@
 #include "vtest.h"
 #include "../vdict.h"
 
+vdict_decl(static, s2s, const char *, const char *);
 vdict_def(static, s2s, const char *, const char *, vhash_string, !strcmp);
 
 vdict(s2s) *d = NULL;
@@ -12,6 +13,8 @@ VTEST(test_new) {
 }
 
 VTEST(test_set) {
+	if (!d) vskip();
+
 	vassert(vdict_s2s_set(d, "foo", "bar"));
 	vassertn(vdict_s2s_set(d, "foo", "baz"));
 
@@ -20,6 +23,8 @@ VTEST(test_set) {
 }
 
 VTEST(test_del) {
+	if (!d) vskip();
+
 	vassert(vdict_s2s_set(d, "delete me", "sekrit data"));
 	vassert_not_null(vdict_s2s_get(d, "delete me"));
 	vassert(vdict_s2s_del(d, "delete me"));
@@ -35,11 +40,15 @@ VTEST(test_del) {
 		} \
 	} while (0)
 VTEST(test_get) {
+	if (!d) vskip();
+
 	get_expect("foo", "baz");
 	get_expect("bar", "frob");
 }
 
 VTEST(test_rehash) {
+	if (!d) vskip();
+
 	vassert_eq(d->e_capacity, 8);
 	vassert_eq(d->i_capacity, 32);
 
@@ -96,6 +105,8 @@ VTEST(test_rehash) {
 }
 
 VTEST(test_repack) {
+	if (!d) vskip();
+
 	vassert_eq(d->n_removed, 0);
 
 	get_expect("1", "one");
@@ -144,7 +155,9 @@ VTEST(test_repack) {
 }
 
 VTEST(test_free) {
+	if (!d) vskip();
 	vdict_s2s_free(d);
+	d = NULL;
 }
 
 VTESTS_BEGIN
