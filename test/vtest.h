@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 
 // Color codes {{{
 #define _vtest_color_black "0"
@@ -22,15 +23,16 @@
 #define _v_reset "\x1b[0m"
 // }}}
 
-#define _vmsg_in0(func, class_clr, class, fmt, ...) \
+#define _vmsg_in0(func, line, class_clr, class, fmt, ...) \
 	fprintf(stderr, \
 		_v_fg(class_clr) "[" class "]" \
 		_v_fg(green) "   %s" \
+		_v_fg(cyan) ":%d" \
 		_v_reset " \t" fmt "%s", \
-		func, \
+		func, line, \
 		__VA_ARGS__)
 #define _vmsg_in(...) _vmsg_in0(__VA_ARGS__, "\n")
-#define _vmsg(...) _vmsg_in(__func__, __VA_ARGS__)
+#define _vmsg(...) _vmsg_in(__func__, __LINE__, __VA_ARGS__)
 
 enum {
 	VTEST_PASS,
@@ -38,14 +40,16 @@ enum {
 	VTEST_SKIP,
 };
 
-#define vskip(...) return (void)(_vmsg(cyan, "SKIP", "" __VA_ARGS__), *_vtest_status = VTEST_SKIP)
-#define _vfail_in(func, ...) (_vmsg_in(func, red, "FAIL", __VA_ARGS__), *_vtest_status = VTEST_FAIL, 0)
-#define vfail(...) _vfail_in(__func__, __VA_ARGS__)
+#define vskip(...) do { _vmsg(cyan, "SKIP", "" __VA_ARGS__); *_vtest_status = VTEST_SKIP; return; } while (0)
+#define _vfail_in(func, line, ...) (_vmsg_in(func, line, red, "FAIL", __VA_ARGS__), *_vtest_status = VTEST_FAIL, 0)
+#define vfail(...) _vfail_in(__func__, __LINE__, __VA_ARGS__)
 
 // Assertions {{{
 #define vassert_msg(cond, ...) ((cond) || vfail(__VA_ARGS__))
 #define vassert(cond) vassert_msg(cond, #cond " == false")
 #define vassertn(cond) vassert_msg(!(cond), #cond " == true")
+#define vassert_not_null(expr) vassert_msg((expr), #expr " == NULL")
+#define vassert_null(expr) vassert_msg(!(expr), #expr " != NULL")
 
 #if __STDC_VERSION__ >= 201112L
 #define vassert_eq(a, b) _Generic((a), \
@@ -69,24 +73,29 @@ enum {
 #endif
 #define _vassert_eq(a, b) vassert_msg((a) == (b), "%s != %s", #a, #b)
 
-#define _vassert_wrap(func, a, b) func(a, b, #a, #b, __func__, _vtest_status)
+#define _vassert_wrap(func, a, b) func(a, b, #a, #b, __func__, __LINE__, _vtest_status)
 
-#define _vassert_typed_args const char *as, const char *bs, const char *func, int *_vtest_status
+#define _vassert_typed_args const char *as, const char *bs, const char *func, int line, int *_vtest_status
 
 static inline int _vassert_eq_i(intmax_t a, intmax_t b, _vassert_typed_args) {
-	return a == b || _vfail_in(func, "%s != %s   (%"PRIdMAX" != %"PRIdMAX")", as, bs, a, b);
+	return a == b || _vfail_in(func, line, "%s != %s   (%"PRIdMAX" != %"PRIdMAX")", as, bs, a, b);
 }
 #define vassert_eq_i(a, b) _vassert_wrap(_vassert_eq_i, a, b)
 
 static inline int _vassert_eq_u(uintmax_t a, uintmax_t b, _vassert_typed_args) {
-	return a == b || _vfail_in(func, "%s != %s   (%"PRIuMAX" != %"PRIuMAX")", as, bs, a, b);
+	return a == b || _vfail_in(func, line, "%s != %s   (%"PRIuMAX" != %"PRIuMAX")", as, bs, a, b);
 }
 #define vassert_eq_u(a, b) _vassert_wrap(_vassert_eq_u, a, b)
 
 static inline int _vassert_eq_f(long double a, long double b, _vassert_typed_args) {
-	return a == b || _vfail_in(func, "%s != %s   (%Lg != %Lg)", as, bs, a, b);
+	return a == b || _vfail_in(func, line, "%s != %s   (%Lg != %Lg)", as, bs, a, b);
 }
 #define vassert_eq_f(a, b) _vassert_wrap(_vassert_eq_f, a, b)
+
+static inline int _vassert_eq_s(const char *a, const char *b, _vassert_typed_args) {
+	return !strcmp(a, b) || _vfail_in(func, line, "%s != %s   (\"%s\" != \"%s\")", as, bs, a, b);
+}
+#define vassert_eq_s(a, b) _vassert_wrap(_vassert_eq_s, a, b)
 // }}}
 
 typedef void (*vtest_func_t)(int *_vtest_status);
@@ -102,14 +111,14 @@ typedef void (*vtest_func_t)(int *_vtest_status);
 			(*func)(&status); \
 			result[status]++; \
 			total++; \
-			if (status == VTEST_PASS) _vmsg(green, "PASS", ""); \
 		} \
-		fprintf(stderr, "\n" \
+		if (result[VTEST_FAIL]) fputc('\n', stderr); \
+		fprintf(stderr, \
 			_v_reset "[TOTAL %d TESTS]\n" \
 			_v_fg_bright(green) "%2d passed\n" \
 			_v_fg_bright(red) "%2d failed\n" \
 			_v_fg_bright(cyan) "%2d skipped\n" \
-			_v_reset, \
+			_v_reset "\n", \
 			total, \
 			result[VTEST_PASS], \
 			result[VTEST_FAIL], \
