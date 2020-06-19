@@ -98,6 +98,26 @@ VTEST(test_closef) {
 	vassert(vclosef(0.5, closef_values[2], 2));
 }
 
+VTEST(test_rsqrtf) {
+	for (float f = 1; f < 100; f++) {
+		float res = 1.0f / f;
+		float sq = f*f;
+		float res1 = rsqrtf(sq);
+		float res2 = _vmath_fisrf(sq);
+		vassert_msg(vclosef(res1, res, 2084),  "rsqrtf(%g)         %.8f != %.8f", sq, res1, res);
+		vassert_msg(vclosef(res2, res, 28401), "_vmath_fisrf(%g)   %.8f != %.8f", sq, res2, res);
+	}
+}
+
+VTEST(test_rsqrt) {
+	for (double f = 1; f < 100; f++) {
+		double res = 1.0 / f;
+		double sq = f*f;
+		double res1 = rsqrt(sq);
+		vassert_msg(vclosef(res1, res, 28385), "rsqrt(%g)   %.16f != %.16f", sq, res1, res);
+	}
+}
+
 VTEST(test_debruijn) {
 	uint8_t size = 1;
 	for (int i = 1; i <= 1500; i++) {
@@ -122,6 +142,9 @@ VTESTS_BEGIN
 
 	test_close,
 	test_closef,
+
+	test_rsqrtf,
+	test_rsqrt,
 
 	test_debruijn,
 VTESTS_END

@@ -95,6 +95,45 @@ static inline _Bool vclosef(float a, float b, int acceptable_ulps) {
 
 // TODO: implement vclosel, but there's no 80-bit int so idk how tf to do that
 
+#if defined(__STDC_IEC_559__)
+static inline float _vmath_fisrf(float f) {
+	// Fast inverse square root for float
+	union {float f; int i;} fi = {f};
+	fi.i = 0x5f3759df - (fi.i >> 1);
+	return fi.f * (1.5f - (0.5f * f * fi.f * fi.f));
+}
+
+static inline float _vmath_fisrd(double f) {
+	// Fast inverse square root for double
+	union {double f; long i;} fi = {f};
+	fi.i = 0x5fe6eb50c7b537a9 - (fi.i >> 1);
+	return fi.f * (1.5 - (0.5 * f * fi.f * fi.f));
+}
+#endif
+
+#if defined(__SSE__) && (defined(__GNUC__) || defined(__clang__) || defined(__TINYC__))
+static inline float rsqrtf(float f) {
+	// Inline asm for rsqrtss
+	float ret;
+	__asm__ ("rsqrtss %0, %1" : "=x" (ret) : "Ex" (f));
+	return ret;
+}
+#elif defined(__STDC_IEC_559__)
+// Fast inverse square root
+// Not as fast or accurate as rsqrtss, but it's not too bad and works anywhere that uses IEEE754
+#define rsqrtf _vmath_fisrf
+#else
+// Naive implementation
+// Accurate, but slow as fuck
+#define rsqrtf(f) (1.0f/sqrtf(f));
+#endif
+
+#if defined(__STDC_IEC_559__)
+#define rsqrt _vmath_fisrd
+#else
+#define rsqrt(f) (1.0/sqrt(f));
+#endif
+
 // From this very nice page http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogDeBruijn
 static inline uint8_t _vmath_debruijn(uint32_t x) {
 	static const uint8_t debruijn[32] = {
