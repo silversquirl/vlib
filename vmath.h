@@ -24,7 +24,6 @@
  *
  * For more information, please refer to <http://unlicense.org/>
  */
-
 #ifndef VMATH_H
 #define VMATH_H
 
