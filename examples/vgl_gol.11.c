@@ -21,7 +21,6 @@ const char *frag_shader =
 	"uniform sampler2DRect prev;\n"
 	"void main() {\n"
 	"	ivec2 pos = ivec2(gl_FragCoord.xy);"
-#if 1
 	"	bool me;\n"
 	"	int neighbours = 0;\n"
 	"	// compiler pls unroll kthx\n"
@@ -40,8 +39,6 @@ const char *frag_shader =
 	"	}\n"
 	"\n"
 	"	color = float(me) * vec3(1, 1, 1);\n"
-#endif
-	//"	color = texelFetch(prev, pos).rgb;\n"
 	"}\n";
 
 // Square when used as a triangle fan
