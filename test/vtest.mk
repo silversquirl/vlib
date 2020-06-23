@@ -1,23 +1,24 @@
-VTEST_TESTS := $(patsubst %.c,test\:%,$(wildcard *.c))
-
-VTEST_CC ?= clang -std=c11 -pedantic
-VTEST_CFLAGS := -Wall -g -O0 $(VTEST_CFLAGS)
 VTEST_DIR ?= .
-#VTEST_LDFLAGS :=
-#VTEST_DEPS :=
+VTEST_TESTS := $(patsubst $(VTEST_DIR)/%.c,test\:%,$(wildcard $(VTEST_DIR)/*.c))
+VTEST_HEADER_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+
+VTEST_DEPS ?=
+VTEST_CC ?= clang -std=c11 -pedantic
+VTEST_CFLAGS := -Wall -g -O0 -I$(VTEST_HEADER_DIR)/ $(VTEST_CFLAGS)
+VTEST_LDFLAGS ?=
 
 .PHONY: test test\:clean
 test: $(VTEST_TESTS)
 test\:clean:
-	rm -rf .vtest_cache
+	rm -rf $(VTEST_DIR)/.vtest_cache
 
 .PHONY: test\:%
-.SECONDARY: $(patsubst test\:%,.vtest_cache/%,$(VTEST_TESTS))
-test\:%: .vtest_cache/%
+.SECONDARY: $(patsubst test\:%,$(VTEST_DIR)/.vtest_cache/%,$(VTEST_TESTS))
+test\:%: $(VTEST_DIR)/.vtest_cache/%
 	@echo '[TEST]  ' $(patsubst test:%,%,$@)
 	@./$<
 
-.vtest_cache/%: %.c $(VTEST_DIR)/vtest.h $(VTEST_DEPS)
+$(VTEST_DIR)/.vtest_cache/%: $(VTEST_DIR)/%.c $(VTEST_HEADER_DIR)/vtest.h $(VTEST_DEPS)
 	@echo '[CC]    ' $(patsubst %.c,%,$<)
-	@mkdir -p .vtest_cache
+	@mkdir -p $(VTEST_DIR)/.vtest_cache
 	@$(VTEST_CC) $(VTEST_CFLAGS) -o $@ $< $(VTEST_LDFLAGS)
