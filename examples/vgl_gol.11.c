@@ -20,7 +20,7 @@ const char *frag_shader =
 	"uniform ivec2 size;\n"
 	"uniform sampler2DRect prev;\n"
 	"void main() {\n"
-	"	ivec2 pos = ivec2(gl_FragCoord.xy);"
+	"	ivec2 pos = ivec2(gl_FragCoord.xy);\n"
 	"	bool me;\n"
 	"	int neighbours = 0;\n"
 	"	// compiler pls unroll kthx\n"
