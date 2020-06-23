@@ -49,7 +49,9 @@
 #if __STDC_VERSION__ >= 201112L
 #define _vmath_cassert _Static_assert
 #else
-#define _vmath_cassert(expr, msg) struct _vmath_cassert##__LINE__ { int a : (expr) ? 1 : -1; }
+#define _vmath_splat(a, b) _vmath_splat2(a, b)
+#define _vmath_splat2(a, b) a##b
+#define _vmath_cassert(expr, msg) struct _vmath_splat(_vmath_cassert, __LINE__) { int a : (expr) ? 1 : -1; }
 #endif
 // }}}
 
