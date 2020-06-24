@@ -88,12 +88,13 @@ typedef union {
 		GLfloat x, y, z;
 	};
 } vec3_t;
+#define vec3(x, y, z) ((vec3_t){{x, y, z}})
 
-#define v3v3op(a, op, b) ((vec3_t){{(a).x op (b).x, (a).y op (b).y, (a).z op (b).z}})
-#define v3sop(v, op, s) ((vec3_t){{(v).x op s, (v).y op s, (v).z op s}})
+#define v3v3op(a, op, b) vec3((a).x op (b).x, (a).y op (b).y, (a).z op (b).z)
+#define v3sop(v, op, s) vec3((v).x op s, (v).y op s, (v).z op s)
 
 static inline GLfloat v3dot(vec3_t a, vec3_t b) {
-	return a.x*b.x + a.y*b.y + a.z+b.z;
+	return a.x*b.x + a.y*b.y + a.z*b.z;
 }
 
 static inline vec3_t v3norm(vec3_t v) {
@@ -104,11 +105,11 @@ static inline vec3_t v3norm(vec3_t v) {
 }
 
 static inline vec3_t v3cross(vec3_t a, vec3_t b) {
-	return (vec3_t){{
+	return vec3(
 		a.x*b.y - a.y*b.x,
 		a.y*b.z - a.z*b.y,
-		a.z*b.x - a.x*b.z,
-	}};
+		a.z*b.x - a.x*b.z
+	);
 }
 // }}}
 

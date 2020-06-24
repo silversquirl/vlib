@@ -112,7 +112,8 @@ static inline float _vmath_fisrd(double f) {
 }
 #endif
 
-#if defined(__SSE__) && (defined(__GNUC__) || defined(__clang__) || defined(__TINYC__))
+#if !defined(VMATH_NOGNU) && defined(__SSE__) && (defined(__GNUC__) || defined(__clang__) || defined(__TINYC__))
+#define VMATH_RSQRT_SSE
 static inline float rsqrtf(float f) {
 	// Inline asm for rsqrtss
 	float ret;

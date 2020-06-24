@@ -99,27 +99,30 @@ enum {
 #endif
 #define _vassert_eq(a, b) vassert_msg((a) == (b), "%s != %s", #a, #b)
 
-#define _vassert_wrap(func, a, b) func(a, b, #a, #b, __func__, __LINE__, _vtest_status)
+#define _vassert_wrap0(func, a, b, ...) func(a, b, __VA_ARGS__, #b, __func__, __LINE__, _vtest_status)
+#define _vassert_wrap(func, a, ...) _vassert_wrap0(func, a, __VA_ARGS__, #a)
+#define _vassert_fail0(detail, ...) _vfail_in(func, line, "%s != %s  (" detail "%c", as, bs, __VA_ARGS__)
+#define _vassert_fail(...) _vassert_fail0(__VA_ARGS__, ')')
 
 #define _vassert_typed_args const char *as, const char *bs, const char *func, int line, int *_vtest_status
 
 static inline int _vassert_eq_i(intmax_t a, intmax_t b, _vassert_typed_args) {
-	return a == b || _vfail_in(func, line, "%s != %s   (%"PRIdMAX" != %"PRIdMAX")", as, bs, a, b);
+	return a == b || _vassert_fail("%"PRIdMAX" != %"PRIdMAX, a, b);
 }
 #define vassert_eq_i(a, b) _vassert_wrap(_vassert_eq_i, a, b)
 
 static inline int _vassert_eq_u(uintmax_t a, uintmax_t b, _vassert_typed_args) {
-	return a == b || _vfail_in(func, line, "%s != %s   (%"PRIuMAX" != %"PRIuMAX")", as, bs, a, b);
+	return a == b || _vassert_fail("%"PRIuMAX" != %"PRIuMAX, a, b);
 }
 #define vassert_eq_u(a, b) _vassert_wrap(_vassert_eq_u, a, b)
 
 static inline int _vassert_eq_f(long double a, long double b, _vassert_typed_args) {
-	return a == b || _vfail_in(func, line, "%s != %s   (%Lg != %Lg)", as, bs, a, b);
+	return a == b || _vassert_fail("%Lg != %Lg", a, b);
 }
 #define vassert_eq_f(a, b) _vassert_wrap(_vassert_eq_f, a, b)
 
 static inline int _vassert_eq_s(const char *a, const char *b, _vassert_typed_args) {
-	return !strcmp(a, b) || _vfail_in(func, line, "%s != %s   (\"%s\" != \"%s\")", as, bs, a, b);
+	return !strcmp(a, b) || _vassert_fail("\"%s\" != \"%s\"", a, b);
 }
 #define vassert_eq_s(a, b) _vassert_wrap(_vassert_eq_s, a, b)
 // }}}
