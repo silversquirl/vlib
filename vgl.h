@@ -108,6 +108,14 @@ static inline vec3_t v3norm(vec3_t v) {
 	return v3sop(v, *, inv_mag);
 }
 
+// Slow but accurate
+static inline vec3_t v3norm_slow(vec3_t v) {
+	GLfloat mag2 = v3dot(v, v);
+	if (mag2 == 0.0f || mag2 == 1.0f) return v;
+	GLfloat mag = sqrtf(mag2);
+	return v3sop(v, /, mag);
+}
+
 static inline vec3_t v3cross(vec3_t a, vec3_t b) {
 	return vec3(
 		a.y*b.z - a.z*b.y,
@@ -156,6 +164,77 @@ void m4print(mat44_t m);
 mat44_t vgl_look(vec3_t pos, vec3_t dir, vec3_t up);
 #define vaspect(width, height) ((float)(width) / (float)(height))
 mat44_t vgl_perspective(GLfloat fov, GLfloat aspect, GLfloat near, GLfloat far);
+// }}}
+
+// Quaternions {{{
+typedef union {
+	GLfloat q[4];
+	struct {
+		GLfloat w, x, y, z;
+	};
+} quat_t;
+#define quat(w, x, y, z) ((quat_t){{w, x, y, z}})
+
+enum vgl_euler_order {
+	VGL_XYZ,
+	VGL_XZY,
+	VGL_YXZ,
+	VGL_YZX,
+	VGL_ZXY,
+	VGL_ZYX,
+};
+
+static inline quat_t qneg(quat_t q) {
+	return quat(-q.w, -q.x, -q.y, -q.z);
+}
+
+static inline quat_t qinv(quat_t q) {
+	GLfloat fac = 1.0f / (q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z);
+	return quat(fac * q.w, -fac * q.x, -fac * q.y, -fac * q.z);
+}
+
+static inline quat_t qmul(quat_t a, quat_t b) {
+	// Hamilton product
+	return quat(
+		a.w*b.w - a.x*b.x - a.y*b.y - a.z*b.z,
+		a.w*b.x + a.x*b.w + a.y*b.z - a.z*b.y,
+		a.w*b.y - a.x*b.z + a.y*b.w + a.z*b.x,
+		a.w*b.z + a.x*b.y - a.y*b.x + a.z*b.w
+	);
+}
+#define qmul3(a, b, c) qmul(a, qmul(b, c))
+
+static inline vec3_t v3rot(vec3_t v, quat_t rot) {
+	quat_t q = qmul3(rot, quat(0, v.x, v.y, v.z), qinv(rot));
+	return vec3(q.x, q.y, q.z);
+}
+
+static inline quat_t qrot(vec3_t axis, GLfloat angle) {
+	angle *= 0.5f;
+	GLfloat s = sin(angle), c = cos(angle);
+	return quat(c, s*axis.x, s*axis.y, s*axis.z);
+}
+
+static inline quat_t qeuler(vec3_t angles, enum vgl_euler_order order) {
+	quat_t x = qrot(vec3(1, 0, 0), angles.x);
+	quat_t y = qrot(vec3(0, 1, 0), angles.y);
+	quat_t z = qrot(vec3(0, 0, 1), angles.z);
+
+	switch (order) {
+	case VGL_XYZ:
+		return qmul3(z, y, x);
+	case VGL_XZY:
+		return qmul3(y, z, x);
+	case VGL_YXZ:
+		return qmul3(z, x, y);
+	case VGL_YZX:
+		return qmul3(x, z, y);
+	case VGL_ZXY:
+		return qmul3(y, x, z);
+	case VGL_ZYX:
+		return qmul3(x, y, z);
+	}
+}
 // }}}
 
 // Shaders {{{

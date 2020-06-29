@@ -36,7 +36,8 @@
 #define _vmath_generic_float(value, func) _Generic((value), \
 	float: func##f(value), \
 	double: func##d(value), \
-	long double: func##l(value))
+	long double: func##l(value), \
+	default: func##d(value))
 #else
 #define _vmath_generic_float(value, func) \
 	( sizeof (value) == sizeof (float) ? func##f(value) \
@@ -81,6 +82,7 @@ _vmath_cassert(-1 == ~0, "Your C implementation does not use two's complement fo
 // With acceptable_ulps == 0, this is equivalent to a == b
 static inline _Bool vclose(double a, double b, int acceptable_ulps) {
 	// See here for an explanation of how this works: https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/
+	if (a == b) return 1;
 	if (signbit(a) != signbit(b)) return 0;
 	union {double f; long i;} ai = {a}, bi = {b};
 	long ulps = ai.i - bi.i;
@@ -88,6 +90,7 @@ static inline _Bool vclose(double a, double b, int acceptable_ulps) {
 }
 
 static inline _Bool vclosef(float a, float b, int acceptable_ulps) {
+	if (a == b) return 1;
 	if (signbit(a) != signbit(b)) return 0;
 	union {float f; int i;} ai = {a}, bi = {b};
 	int ulps = ai.i - bi.i;

@@ -34,6 +34,57 @@ const char *frag_shader =
 	"	color = v_color;\n"
 	"}\n";
 
+struct global_data {
+	double mousex, mousey;
+	GLfloat cam_rotx, cam_roty;
+	GLfloat cam_dist;
+	mat44_t cam_mat;
+};
+
+static void update_camera(struct global_data *gd) {
+	quat_t rot = qeuler(vec3(gd->cam_rotx, gd->cam_roty, 0), VGL_XYZ);
+	vec3_t cam_dir = v3rot(vec3(0, 0, -1), rot);
+	vec3_t cam_pos = v3sop(cam_dir, *, -gd->cam_dist);
+	gd->cam_mat = vgl_look(cam_pos, cam_dir, vec3(0, 1, 0));
+}
+
+static void mousebtn(GLFWwindow *win, int btn, int act, int mods) {
+	struct global_data *gd = glfwGetWindowUserPointer(win);
+	if (btn == GLFW_MOUSE_BUTTON_MIDDLE) {
+		if (act == GLFW_PRESS) {
+			glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			glfwGetCursorPos(win, &gd->mousex, &gd->mousey);
+		} else {
+			glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		}
+	}
+}
+
+static void mousemove(GLFWwindow *win, double x, double y) {
+	struct global_data *gd = glfwGetWindowUserPointer(win);
+	if (glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_MIDDLE) != GLFW_PRESS) return;
+
+	double dx = x - gd->mousex;
+	double dy = y - gd->mousey;
+
+	gd->mousex = x;
+	gd->mousey = y;
+
+	const GLfloat ROTSCALE = -1.0/200.0;
+	dx *= ROTSCALE;
+	dy *= ROTSCALE;
+
+	const GLfloat ylim = TAU_F/4.0001f;
+	gd->cam_rotx += dy;
+	if (gd->cam_rotx > ylim) gd->cam_rotx = ylim;
+	else if (gd->cam_rotx < -ylim) gd->cam_rotx = -ylim;
+
+	gd->cam_roty += dx;
+	gd->cam_roty = fmod(gd->cam_roty, TAU_F);
+
+	update_camera(gd);
+}
+
 int main(int argc, char *argv[]) {
 	const char *modelfn = "vgl_data/cube.vmsh";
 	if (argc >= 2) modelfn = argv[1];
@@ -41,6 +92,13 @@ int main(int argc, char *argv[]) {
 	int width = 1280, height = 1024;
 	GLFWwindow *win = vgl_init(width, height, "Model loading example");
 	if (!win) panic("Window creation failed");
+
+	// Events
+	struct global_data gd = {0};
+	glfwSetWindowUserPointer(win, &gd);
+
+	glfwSetCursorPosCallback(win, mousemove);
+	glfwSetMouseButtonCallback(win, mousebtn);
 
 	// Create VAO
 	GLuint vao;
@@ -77,9 +135,8 @@ int main(int argc, char *argv[]) {
 
 	// MVP matrix
 	mat44_t proj = vgl_perspective(vradians(35.0f), vaspect(width, height), 0.1f, 100.0f);
-	vec3_t cam_pos = vec3(5, 5, 5);
-	mat44_t cam = vgl_look(vec3(5, 5, 5), v3norm(v3neg(cam_pos)), vec3(0, 1, 0));
-	mat44_t mvp = m4mul(cam, proj);
+	gd.cam_dist = 7.0f;
+	update_camera(&gd);
 
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
@@ -90,6 +147,7 @@ int main(int argc, char *argv[]) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glUseProgram(shader);
 
+		mat44_t mvp = m4mul(gd.cam_mat, proj);
 		glUniformMatrix4fv(shader_mvp, 1, GL_FALSE, mvp.a);
 
 		vgl_mesh_draw(gmesh, layout);
