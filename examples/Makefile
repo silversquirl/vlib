@@ -2,7 +2,7 @@ CC = clang -pedantic
 CFLAGS = -Wall -g
 LDFLAGS = -lm -lpthread -lrt
 
-TARGETS = channel hashset hashtable network vgl_gol
+TARGETS = channel network vgl_gol vgl_model
 
 .PHONY: all clean
 all: $(TARGETS)
@@ -10,7 +10,7 @@ all: $(TARGETS)
 clean:
 	rm -f $(TARGETS)
 
-vgl_gol: vgl_gol.11.c
+vgl_%: vgl_%.11.c
 	$(CC) -std=c11 $(CFLAGS) -o $@ $< $(LDFLAGS) -lGL -lGLEW -lglfw
 
 %: %.11.c

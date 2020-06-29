@@ -1,6 +1,6 @@
 /* vgl.h
  *
- * OpenGL helper library
+ * OpenGL helper library. Requires GLFW3, GLEW, OpenGL 3.3 or greater and C11 or greater
  * Define VGL_IMPL in exactly one translation unit
  */
 
@@ -33,13 +33,10 @@
 #ifndef VGL_H
 #define VGL_H
 
-#include <fcntl.h>
+#include <errno.h>
+#include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
+#include <string.h>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -74,7 +71,10 @@ GLFWwindow *vgl_init1(struct vgl_window_options opts);
 // Memory-mapped files {{{
 struct vgl_mbuf {
 	size_t len;
-	const char *data;
+	union {
+		const char *data;
+		const unsigned char *udata;
+	};
 };
 
 struct vgl_mbuf vgl_mapfile(const char *fn);
@@ -93,6 +93,10 @@ typedef union {
 #define v3v3op(a, op, b) vec3((a).x op (b).x, (a).y op (b).y, (a).z op (b).z)
 #define v3sop(v, op, s) vec3((v).x op s, (v).y op s, (v).z op s)
 
+static inline vec3_t v3neg(vec3_t v) {
+	return vec3(-v.x, -v.y, -v.z);
+}
+
 static inline GLfloat v3dot(vec3_t a, vec3_t b) {
 	return a.x*b.x + a.y*b.y + a.z*b.z;
 }
@@ -106,9 +110,9 @@ static inline vec3_t v3norm(vec3_t v) {
 
 static inline vec3_t v3cross(vec3_t a, vec3_t b) {
 	return vec3(
-		a.x*b.y - a.y*b.x,
 		a.y*b.z - a.z*b.y,
-		a.z*b.x - a.x*b.z
+		a.z*b.x - a.x*b.z,
+		a.x*b.y - a.y*b.x
 	);
 }
 // }}}
@@ -116,6 +120,7 @@ static inline vec3_t v3cross(vec3_t a, vec3_t b) {
 // 4x4 matrix {{{
 typedef union {
 	GLfloat m[4][4];
+	GLfloat a[4*4];
 	struct {
 		GLfloat 
 			a11, a12, a13, a14,
@@ -127,19 +132,29 @@ typedef union {
 
 static inline mat44_t m4mul(mat44_t a, mat44_t b) {
 	mat44_t m;
-	for (int x = 0; x < 4; x++) {
-		for (int y = 0; y < 4; y++) {
-			a.m[y][x] = 0;
+	for (int row = 0; row < 4; row++) {
+		for (int col = 0; col < 4; col++) {
+			m.m[row][col] = 0;
 			for (int k = 0; k < 4; k++) {
-				m.m[y][x] += a.m[k][x] * b.m[y][k];
+				m.m[row][col] += a.m[row][k] * b.m[k][col];
 			}
 		}
 	}
 	return m;
 }
 
+const mat44_t m4id = (mat44_t){{
+	{1, 0, 0, 0},
+	{0, 1, 0, 0},
+	{0, 0, 1, 0},
+	{0, 0, 0, 1},
+}};
+
+void m4print(mat44_t m);
+
 // `dir` must be normalized
 mat44_t vgl_look(vec3_t pos, vec3_t dir, vec3_t up);
+#define vaspect(width, height) ((float)(width) / (float)(height))
 mat44_t vgl_perspective(GLfloat fov, GLfloat aspect, GLfloat near, GLfloat far);
 // }}}
 
@@ -158,24 +173,85 @@ struct vgl_image vgl_load_farbfeld_data(const char *data, size_t len);
 struct vgl_image vgl_load_farbfeld(const char *fn);
 // }}}
 
+// Model loading {{{
+enum vgl_mesh_flag {
+	VGL_MESH_W = 0x01,
+	VGL_MESH_NORMAL = 0x02,
+	VGL_MESH_UV = 0x04,
+	VGL_MESH_UVW = 0x08,
+};
+
+struct vgl_mesh {
+	GLuint flag;
+	GLsizei nvert, ntri;
+	GLfloat *verts;
+	union {
+		GLuint *tris_hp; // High-poly, need to use int
+		GLushort *tris_lp; // Low-poly, can use short
+	};
+};
+
+enum {VGL_VMESH_VERSION = 1};
+
+#define vgl_mesh_highpoly(mesh) ((mesh)->nvert > (GLuint)~(GLushort)0)
+#define vgl_mesh_tri(mesh, idx) (vgl_mesh_highpoly(mesh) ? (mesh)->tris_hp[idx] : (mesh)->tris_lp[idx])
+// counted in multiples of sizeof (GLfloat)
+#define vgl_mesh_vert_size(mesh) _vgl_mesh_vert_size((mesh)->flag)
+static inline size_t _vgl_mesh_vert_size(GLuint flag) {
+	return
+		3 +
+		1*!!(flag & VGL_MESH_W) +
+		3*!!(flag & VGL_MESH_NORMAL) +
+		2*!!(flag & VGL_MESH_UV) +
+		1*!!(flag & VGL_MESH_UVW);
+}
+void vgl_mesh_del(struct vgl_mesh *mesh);
+
+struct vgl_gpu_mesh {
+	GLuint flag;
+	GLsizei nvert, nelem;
+	GLuint array, elem;
+};
+
+struct vgl_gpu_layout {
+	GLint vert, norm, uv;
+};
+
+void vgl_mesh_upload_to(struct vgl_mesh *mesh, struct vgl_gpu_mesh *gmesh);
+struct vgl_gpu_mesh vgl_mesh_upload(struct vgl_mesh *mesh);
+void vgl_mesh_draw(struct vgl_gpu_mesh gmesh, struct vgl_gpu_layout layout);
+
+extern const char *vgl_mesherr;
+struct vgl_mesh *vgl_load_vmesh_data(const unsigned char *data, size_t len);
+struct vgl_mesh *vgl_load_vmesh(const char *fn);
+// }}}
+
 #endif
 
 #ifdef VGL_IMPL
 #undef VGL_IMPL
+
+#include <fcntl.h>
+#include <regex.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 const char *vgl_strerror(void) {
 	switch (glGetError()) {
 	case GL_NO_ERROR:
 		break;
 
-#define _vgl_pe_error(err) case GL_##err: return #err;
-	_vgl_pe_error(INVALID_ENUM);
-	_vgl_pe_error(INVALID_VALUE);
-	_vgl_pe_error(INVALID_OPERATION);
-	_vgl_pe_error(INVALID_FRAMEBUFFER_OPERATION);
-	_vgl_pe_error(OUT_OF_MEMORY);
-	_vgl_pe_error(STACK_UNDERFLOW);
-	_vgl_pe_error(STACK_OVERFLOW);
+#define _vgl_match_error(err) case GL_##err: return #err;
+	_vgl_match_error(INVALID_ENUM);
+	_vgl_match_error(INVALID_VALUE);
+	_vgl_match_error(INVALID_OPERATION);
+	_vgl_match_error(INVALID_FRAMEBUFFER_OPERATION);
+	_vgl_match_error(OUT_OF_MEMORY);
+	_vgl_match_error(STACK_UNDERFLOW);
+	_vgl_match_error(STACK_OVERFLOW);
 	}
 	return NULL;
 }
@@ -245,6 +321,15 @@ void vgl_unmap(struct vgl_mbuf buf) {
 // }}}
 
 // 4x4 matrix {{{
+void m4print(mat44_t m) {
+	for (int row = 0; row < 4; row++) {
+		for (int col = 0; col < 4; col++) {
+			printf("%4.2g ", m.m[row][col]);
+		}
+		putchar('\n');
+	}
+}
+
 // `dir` must be normalized
 mat44_t vgl_look(vec3_t pos, vec3_t dir, vec3_t up) {
 	// Stolen from cglm
@@ -285,7 +370,7 @@ GLuint _vgl_compile_shader(const char *src, GLint len, GLenum type) {
 	if (log_len > 0) {
 		char buf[log_len];
 		glGetShaderInfoLog(shad, log_len, NULL, buf);
-		fprintf(stderr, "Error compiling GLSL shader:\n%*s\n", log_len, buf);
+		fprintf(stderr, "Error compiling %s shader:\n%*s\n", type == GL_VERTEX_SHADER ? "vertex" : "fragment", log_len, buf);
 	}
 
 	if (!result) {
@@ -389,6 +474,195 @@ struct vgl_image vgl_load_farbfeld(const char *fn) {
 	struct vgl_image img = vgl_load_farbfeld_data(f.data, f.len);
 	vgl_unmap(f);
 	return img;
+}
+// }}}
+
+// Model loading {{{
+void vgl_mesh_del(struct vgl_mesh *mesh) {
+	free(mesh->verts);
+	if (vgl_mesh_highpoly(mesh)) free(mesh->tris_hp);
+	else free(mesh->tris_lp);
+	free(mesh);
+}
+
+void vgl_mesh_upload_to(struct vgl_mesh *mesh, struct vgl_gpu_mesh *gmesh) {
+	gmesh->flag = mesh->flag;
+
+	glBindBuffer(GL_ARRAY_BUFFER, gmesh->array);
+	glBufferData(GL_ARRAY_BUFFER, mesh->nvert * vgl_mesh_vert_size(mesh) * sizeof *mesh->verts, mesh->verts, GL_STATIC_DRAW);
+	gmesh->nvert = mesh->nvert;
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gmesh->elem);
+	if (vgl_mesh_highpoly(mesh)) {
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh->ntri * 3 * sizeof *mesh->tris_hp, mesh->tris_hp, GL_STATIC_DRAW);
+	} else {
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh->ntri * 3 * sizeof *mesh->tris_lp, mesh->tris_lp, GL_STATIC_DRAW);
+	}
+	gmesh->nelem = 3 * mesh->ntri;
+}
+
+struct vgl_gpu_mesh vgl_mesh_upload(struct vgl_mesh *mesh) {
+	GLuint bufs[2];
+	glGenBuffers(2, bufs);
+
+	struct vgl_gpu_mesh gmesh = {0};
+	gmesh.array = bufs[0];
+	gmesh.elem = bufs[1];
+
+	vgl_mesh_upload_to(mesh, &gmesh);
+	return gmesh;
+}
+
+void vgl_mesh_draw(struct vgl_gpu_mesh gmesh, struct vgl_gpu_layout layout) {
+	GLsizei stride = vgl_mesh_vert_size(&gmesh) * sizeof (GLfloat);
+	glBindBuffer(GL_ARRAY_BUFFER, gmesh.array);
+
+	float *offset = 0;
+
+	GLint size = 3 + !!(gmesh.flag & VGL_MESH_W);
+	if (layout.vert != -1) {
+		glEnableVertexAttribArray(layout.vert);
+		glVertexAttribPointer(layout.vert, size, GL_FLOAT, GL_FALSE, stride, offset);
+	}
+	offset += size;
+
+	if (gmesh.flag & VGL_MESH_NORMAL) {
+		GLint size = 3;
+		if (layout.norm != -1) {
+			glEnableVertexAttribArray(layout.norm);
+			glVertexAttribPointer(layout.norm, size, GL_FLOAT, GL_FALSE, stride, offset);
+		}
+		offset += size;
+	}
+
+	if (gmesh.flag & VGL_MESH_UV) {
+		GLint size = 2 + !!(gmesh.flag & VGL_MESH_UVW);
+		if (layout.uv != -1) {
+			glEnableVertexAttribArray(layout.uv);
+			glVertexAttribPointer(layout.uv, size, GL_FLOAT, GL_FALSE, stride, offset);
+		}
+		offset += size;
+	}
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, gmesh.elem);
+	glDrawElements(GL_TRIANGLES, gmesh.nelem, vgl_mesh_highpoly(&gmesh) ? GL_UNSIGNED_INT : GL_UNSIGNED_SHORT, 0);
+
+	if (gmesh.flag & VGL_MESH_UV && layout.uv != -1) glDisableVertexAttribArray(layout.uv);
+	if (gmesh.flag & VGL_MESH_NORMAL && layout.norm != -1) glDisableVertexAttribArray(layout.norm);
+	if (layout.vert != -1) glDisableVertexAttribArray(layout.vert);
+}
+
+static inline GLfloat _vgl_pun_i2f(GLuint i) {
+	float f;
+#ifdef __STDC_IEC_559__
+	f = (union {GLuint i; GLfloat f;}){i}.f;
+#else
+	// Layout of a IEEE 754 binary32 float:
+	//  +------------+----------------+--------------------+
+	//  | 1-bit sign | 8-bit exponent | 23-bit significand |
+	//  +------------+----------------+--------------------+
+	const int FRAC_BIT = 23;
+	int sign = 1 + -2*(i>>31 & 1);
+	int exp = (i>>FRAC_BIT & 0xff) - 127;
+	int frac = 1<<FRAC_BIT | (i & (1<<FRAC_BIT)-1);
+	f = ldexpf(sign * frac, exp - FRAC_BIT);
+#endif
+	return f;
+}
+
+const char *vgl_mesherr = NULL;
+struct vgl_mesh *vgl_load_vmesh_data(const unsigned char *data, size_t len) {
+	size_t i = 0;
+
+#define _vgl_mesherr(msg) return (vgl_mesherr = (msg), NULL)
+
+	// Verify header len
+	if (len < 16) _vgl_mesherr("Invalid header: file too short");
+
+	// Verify magic
+	while (i < 6 && data[i] == "\x7fVMESH"[i]) i++;
+	if (i < 6) _vgl_mesherr("Invalid header: bad magic");
+
+	// Verify version
+	if (data[i++] != VGL_VMESH_VERSION) _vgl_mesherr("Invalid header: unsupported version");
+
+	// Parse flags
+	GLuint flag = data[i++];
+
+	// Parse vertex and triangle counts
+	GLsizei nvert = 0, ntri = 0;
+	for (int j = 0; j < 4; j++) nvert |= data[i++] << (8*j);
+	for (int j = 0; j < 4; j++) ntri |= data[i++] << (8*j);
+
+	// Verify file len
+	size_t vert_size = _vgl_mesh_vert_size(flag);
+	size_t hdr_len = 16;
+	size_t vtab_len = nvert * 4*vert_size;
+	size_t ttab_len = ntri * 4*3;
+	if (len < hdr_len + vtab_len + ttab_len) _vgl_mesherr("Invalid data: file too short");
+
+	// Create mesh struct
+	struct vgl_mesh *mesh = malloc(sizeof *mesh);
+	mesh->flag = flag;
+	mesh->nvert = nvert;
+	mesh->ntri = ntri;
+
+	mesh->verts = malloc(nvert * vert_size * sizeof *mesh->verts);
+	if vgl_mesh_highpoly(mesh) {
+		mesh->tris_hp = malloc(ntri * 3 * sizeof *mesh->tris_hp);
+	} else {
+		mesh->tris_lp = malloc(ntri * 3 * sizeof *mesh->tris_lp);
+	}
+
+#define _vgl_u32(v, section) do { \
+		if (i + 4 > len) { \
+			free(mesh); \
+			_vgl_mesherr("Invalid data: unexpected EOF in " section " table"); \
+		} \
+		(v) = 0; \
+		for (int j = 0; j < 4; j++) { \
+			(v) |= data[i++] << (CHAR_BIT*j); \
+		} \
+	} while (0)
+
+#define _vgl_f32(v, section) do { \
+		GLuint vali; \
+		_vgl_u32(vali, section); \
+		(v) = _vgl_pun_i2f(vali); \
+	} while (0)
+
+	// Parse vertex table
+	for (GLsizei verti = 0; verti < nvert; verti++) {
+		for (int comp = 0; comp < vert_size; comp++) {
+			_vgl_f32(mesh->verts[vert_size*verti + comp], "vertex");
+		}
+	}
+
+	// Parse triangle table
+	for (GLsizei trii = 0; trii < ntri; trii++) {
+		for (int verti = 0; verti < 3; verti++) {
+			GLuint v;
+			_vgl_u32(v, "triangle");
+			if (vgl_mesh_highpoly(mesh)) {
+				mesh->tris_hp[3*trii + verti] = v;
+			} else {
+				mesh->tris_lp[3*trii + verti] = v;
+			}
+		}
+	}
+
+	return mesh;
+}
+
+struct vgl_mesh *vgl_load_vmesh(const char *fn) {
+	struct vgl_mbuf f = vgl_mapfile(fn);
+	if (!f.data) {
+		vgl_mesherr = strerror(errno);
+		return NULL;
+	}
+	struct vgl_mesh *mesh = vgl_load_vmesh_data(f.udata, f.len);
+	vgl_unmap(f);
+	return mesh;
 }
 // }}}
 
