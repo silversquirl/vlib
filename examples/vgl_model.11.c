@@ -64,8 +64,8 @@ static void mousemove(GLFWwindow *win, double x, double y) {
 	struct global_data *gd = glfwGetWindowUserPointer(win);
 	if (glfwGetMouseButton(win, GLFW_MOUSE_BUTTON_MIDDLE) != GLFW_PRESS) return;
 
-	double dx = x - gd->mousex;
-	double dy = y - gd->mousey;
+	GLfloat dx = x - gd->mousex;
+	GLfloat dy = y - gd->mousey;
 
 	gd->mousex = x;
 	gd->mousey = y;
@@ -85,6 +85,14 @@ static void mousemove(GLFWwindow *win, double x, double y) {
 	update_camera(gd);
 }
 
+static void mousescroll(GLFWwindow *win, double dx, double dy) {
+	struct global_data *gd = glfwGetWindowUserPointer(win);
+	const GLfloat ZOOMSCALE = -1.0f/1.5f;
+	gd->cam_dist += ZOOMSCALE * (GLfloat)dy;
+	if (gd->cam_dist < 0) gd->cam_dist = 0;
+	update_camera(gd);
+}
+
 int main(int argc, char *argv[]) {
 	const char *modelfn = "vgl_data/cube.vmsh";
 	if (argc >= 2) modelfn = argv[1];
@@ -97,8 +105,9 @@ int main(int argc, char *argv[]) {
 	struct global_data gd = {0};
 	glfwSetWindowUserPointer(win, &gd);
 
-	glfwSetCursorPosCallback(win, mousemove);
 	glfwSetMouseButtonCallback(win, mousebtn);
+	glfwSetCursorPosCallback(win, mousemove);
+	glfwSetScrollCallback(win, mousescroll);
 
 	// Create VAO
 	GLuint vao;
