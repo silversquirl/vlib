@@ -104,7 +104,7 @@ VTEST(test_rsqrtf) {
 		float sq = f*f;
 		float res1 = rsqrtf(sq);
 		float res2 = _vmath_fisrf(sq);
-		vassert_msg(vclosef(res1, res, 2084),  "rsqrtf(%g)         %.8f != %.8f", sq, res1, res);
+		vassert_msg(vclosef(res1, res, 5000),  "rsqrtf(%g)         %.8f != %.8f", sq, res1, res);
 		vassert_msg(vclosef(res2, res, 28401), "_vmath_fisrf(%g)   %.8f != %.8f", sq, res2, res);
 	}
 }

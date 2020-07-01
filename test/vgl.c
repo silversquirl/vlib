@@ -34,7 +34,7 @@ VTEST(test_v3dot) {
 }
 
 #ifdef VMATH_RSQRT_SSE
-#define RSQRTF_ULPS 2084
+#define RSQRTF_ULPS 5000
 #else
 #define RSQRTF_ULPS 28401
 #endif
