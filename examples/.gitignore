@@ -2,5 +2,6 @@
 !*.c
 !*.h
 !Makefile
+!vgl_data
 !.gitignore
 !gol_start.ff
