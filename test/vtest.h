@@ -116,6 +116,11 @@ static inline int _vassert_eq_u(uintmax_t a, uintmax_t b, _vassert_typed_args) {
 }
 #define vassert_eq_u(a, b) _vassert_wrap(_vassert_eq_u, a, b)
 
+static inline int _vassert_eq_x(uintmax_t a, uintmax_t b, _vassert_typed_args) {
+	return a == b || _vassert_fail("%"PRIXMAX" != %"PRIXMAX, a, b);
+}
+#define vassert_eq_x(a, b) _vassert_wrap(_vassert_eq_x, a, b)
+
 static inline int _vassert_eq_f(long double a, long double b, _vassert_typed_args) {
 	return a == b || _vassert_fail("%Lg != %Lg", a, b);
 }
@@ -125,6 +130,11 @@ static inline int _vassert_eq_s(const char *a, const char *b, _vassert_typed_arg
 	return !strcmp(a, b) || _vassert_fail("\"%s\" != \"%s\"", a, b);
 }
 #define vassert_eq_s(a, b) _vassert_wrap(_vassert_eq_s, a, b)
+
+static inline int _vassert_eq_p(const void *a, const void *b, _vassert_typed_args) {
+	return a == b || _vassert_fail("%p != %p", a, b);
+}
+#define vassert_eq_p(a, b) _vassert_wrap(_vassert_eq_p, a, b)
 // }}}
 
 typedef void (*vtest_func_t)(int *_vtest_status);
