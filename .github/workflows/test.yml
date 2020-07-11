@@ -1,13 +1,23 @@
 # vim: sw=2 ts=2 et
-name: Run Tests
+name: test
 on: push
 jobs:
   examples:
-    name: Build Examples
+    name: Build Generic Examples
     runs-on: ubuntu-latest # Stop not Debian
     steps:
       - uses: actions/checkout@v2
+      - run: apt update
+      - run: apt install -y make clang libglew-dev libglfw3-dev
       - run: make -C examples
+
+  v2_examples:
+    name: Build V2 Examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: apt update
+      - run: apt install -y make clang libsdl2-dev
       - run: make -C v2_examples
 
   test:
@@ -15,4 +25,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - run: apt update
+      - run: apt install -y make clang libglew-dev libglfw3-dev
       - run: make -C test
