@@ -6,13 +6,13 @@ jobs:
     name: Build Examples
     runs-on: ubuntu-latest # Stop not Debian
     steps:
-    - uses: actions/checkout@v2
-    - run: make -C examples
-    - run: make -C v2_examples
+      - uses: actions/checkout@v2
+      - run: make -C examples
+      - run: make -C v2_examples
 
   test:
     name: Run Unit Tests
     runs-on ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - run: make -C test
+      - uses: actions/checkout@v2
+      - run: make -C test
