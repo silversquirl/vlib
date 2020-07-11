@@ -1,11 +1,12 @@
 # vim: sw=2 ts=2 et
 name: Run Tests
-on: [push]
+on: push
 jobs:
   examples:
     name: Build Examples
     runs-on: ubuntu-latest # Stop not Debian
     steps:
+    - uses: actions/checkout@v2
     - run: make -C examples
     - run: make -C v2_examples
 
@@ -13,4 +14,5 @@ jobs:
     name: Run Unit Tests
     runs-on ubuntu-latest
     steps:
+    - uses: actions/checkout@v2
     - run: make -C test
