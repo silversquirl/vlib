@@ -1,4 +1,8 @@
-CC = clang -pedantic
+ifeq "$(CC)" "cc"
+CC = clang
+endif
+
+CC := $(CC) -pedantic
 CFLAGS = -Wall -g
 LDFLAGS = -lm -lpthread -lrt
 

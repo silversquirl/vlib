@@ -1,4 +1,8 @@
-CC = clang -std=c99 -pedantic
+ifeq "$(CC)" "cc"
+CC = clang
+endif
+
+CC := $(CC) -std=c99 -pedantic
 CFLAGS = -Wall -g $(shell sdl2-config --cflags)
 LDFLAGS = -lm $(shell sdl2-config --libs)
 

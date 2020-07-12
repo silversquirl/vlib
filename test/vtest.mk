@@ -3,7 +3,8 @@ VTEST_TESTS := $(patsubst $(VTEST_DIR)/%.c,test\:%,$(wildcard $(VTEST_DIR)/*.c))
 VTEST_HEADER_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
 VTEST_DEPS ?=
-VTEST_CC ?= clang -std=c11 -pedantic
+VTEST_CC ?= clang
+VTEST_CC := $(CC) -std=c11 -pedantic
 VTEST_CFLAGS := -Wall -g -O0 -I$(VTEST_HEADER_DIR)/ $(VTEST_CFLAGS)
 VTEST_LDFLAGS ?=
 
