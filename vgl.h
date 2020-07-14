@@ -449,7 +449,7 @@ GLuint _vgl_compile_shader(const char *src, GLint len, GLenum type) {
 	if (log_len > 0) {
 		char buf[log_len];
 		glGetShaderInfoLog(shad, log_len, NULL, buf);
-		fprintf(stderr, "Error compiling %s shader:\n%*s\n", type == GL_VERTEX_SHADER ? "vertex" : "fragment", log_len, buf);
+		fprintf(stderr, "Error compiling %s shader:\n%.*s\n", type == GL_VERTEX_SHADER ? "vertex" : "fragment", log_len, buf);
 	}
 
 	if (!result) {
@@ -482,7 +482,7 @@ GLuint vgl_shader_source(const char *vert_src, GLint vert_len, const char *frag_
 	if (log_len > 0) {
 		char buf[log_len];
 		glGetProgramInfoLog(prog, log_len, NULL, buf);
-		fprintf(stderr, "Error linking GLSL shader:\n%*s\n", log_len, buf);
+		fprintf(stderr, "Error linking GLSL shader:\n%.*s\n", log_len, buf);
 	}
 
 	glDetachShader(prog, vert);
