@@ -1,5 +1,5 @@
 VTEST_DEPS := ../%.h
-VTEST_LDFLAGS := -lGLEW -lGL -lglfw -lm
+VTEST_LDFLAGS := -lGL -ldl -lglfw -lm
 include vtest.mk
 
 .PHONY: clean

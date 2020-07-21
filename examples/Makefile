@@ -14,8 +14,8 @@ all: $(TARGETS)
 clean:
 	rm -f $(TARGETS)
 
-vgl_%: vgl_%.11.c
-	$(CC) -std=c11 $(CFLAGS) -o $@ $< $(LDFLAGS) -lGL -lGLEW -lglfw
+vgl_%: vgl_%.11.c glad/glad.c
+	$(CC) -std=c11 $(CFLAGS) -o $@ $^ $(LDFLAGS) -lGL -ldl -lglfw
 
 %: %.11.c
 	$(CC) -std=c11 $(CFLAGS) -o $@ $< $(LDFLAGS)

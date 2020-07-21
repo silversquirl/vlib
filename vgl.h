@@ -1,6 +1,7 @@
 /* vgl.h
  *
- * OpenGL helper library. Requires GLFW3, GLEW, OpenGL 3.3 or greater and C11 or greater
+ * OpenGL helper library. Requires GLFW3, GLAD, OpenGL 3.3 or greater and C11 or greater
+ * GLAD must be included before this file
  * Define VGL_IMPL in exactly one translation unit
  */
 
@@ -38,7 +39,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include "vmath.h"
 
@@ -329,8 +329,12 @@ const char *vgl_strerror(void) {
 	_vgl_match_error(INVALID_OPERATION);
 	_vgl_match_error(INVALID_FRAMEBUFFER_OPERATION);
 	_vgl_match_error(OUT_OF_MEMORY);
+#ifdef GL_STACK_UNDERFLOW
 	_vgl_match_error(STACK_UNDERFLOW);
+#endif
+#ifdef GL_STACK_OVERFLOW
 	_vgl_match_error(STACK_OVERFLOW);
+#endif
 	}
 	return NULL;
 }
@@ -360,16 +364,10 @@ GLFWwindow *vgl_init1(struct vgl_window_options opts) {
 		return NULL;
 	}
 
-	glewExperimental = 1;
 	glfwMakeContextCurrent(win);
-	if (glewInit() != GLEW_OK) {
+	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
 		glfwTerminate();
 		return NULL;
-	}
-
-	if (GLEW_ARB_debug_output) {
-		puts("Enabling ARB_debug_output");
-		glDebugMessageCallbackARB(_vgl_debug, NULL);
 	}
 
 	return win;

@@ -1,4 +1,7 @@
 //#define VMATH_NOGNU
+#include "../examples/glad/glad.h"
+#include "../examples/glad/glad.c"
+
 #include "vtest.h"
 #define VGL_IMPL
 #include "../vgl.h"
