@@ -248,7 +248,7 @@ struct vgl_image {
 	unsigned width, height;
 	GLushort *data;
 };
-struct vgl_image vgl_load_farbfeld_data(const char *data, size_t len);
+struct vgl_image vgl_load_farbfeld_data(const unsigned char *data, size_t len);
 struct vgl_image vgl_load_farbfeld(const char *fn);
 // }}}
 
@@ -511,7 +511,7 @@ GLuint vgl_shader_file(const char *vert_fn, const char *frag_fn) {
 // }}}
 
 // Image loading {{{
-struct vgl_image vgl_load_farbfeld_data(const char *bytes, size_t len) {
+struct vgl_image vgl_load_farbfeld_data(const unsigned char *bytes, size_t len) {
 	struct vgl_image img = {0};
 
 	// 8 - magic
@@ -548,7 +548,7 @@ struct vgl_image vgl_load_farbfeld_data(const char *bytes, size_t len) {
 
 struct vgl_image vgl_load_farbfeld(const char *fn) {
 	struct vgl_mbuf f = vgl_mapfile(fn);
-	struct vgl_image img = vgl_load_farbfeld_data(f.data, f.len);
+	struct vgl_image img = vgl_load_farbfeld_data(f.udata, f.len);
 	vgl_unmap(f);
 	return img;
 }
