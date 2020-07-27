@@ -151,12 +151,12 @@ static inline mat44_t m4mul(mat44_t a, mat44_t b) {
 	return m;
 }
 
-const mat44_t m4id = (mat44_t){{
-	{1, 0, 0, 0},
-	{0, 1, 0, 0},
-	{0, 0, 1, 0},
-	{0, 0, 0, 1},
-}};
+#define m4id ((mat44_t){{ \
+	{1, 0, 0, 0}, \
+	{0, 1, 0, 0}, \
+	{0, 0, 1, 0}, \
+	{0, 0, 0, 1}, \
+}})
 
 void m4print(mat44_t m);
 
