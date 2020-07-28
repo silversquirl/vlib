@@ -13,7 +13,7 @@ VTEST(test_mapfile) {
 	vgl_unmap(m);
 }
 
-static inline int _assert_eq_v3(vec3_t a, vec3_t b, int ulps, _vassert_typed_args) {
+static inline int _assert_eq_v3(vec3 a, vec3 b, int ulps, _vassert_typed_args) {
 	return
 		(vclosef(a.x, b.x, ulps) && vclosef(a.y, b.y, ulps) && vclosef(a.z, b.z, ulps)) ||
 		_vassert_fail("[%.200g, %.200g, %.200g] != [%.200g, %.200g, %.200g]", a.x, a.y, a.z, b.x, b.y, b.z);
@@ -49,7 +49,7 @@ VTEST(test_v3cross) {
 	assert_eq_v3(v3cross(vec3(1, 2, 3), vec3(4, 5, 6)), vec3(2*6 - 3*5, 3*4 - 1*6, 1*5 - 2*4), 2);
 }
 
-static inline _Bool m4eq(mat44_t a, mat44_t b, int ulps) {
+static inline _Bool m4eq(mat44 a, mat44 b, int ulps) {
 	for (int y = 0; y < 4; y++) {
 		for (int x = 0; x < 4; x++) {
 			if (!vclosef(a.m[y][x], b.m[y][x], ulps)) return 0;
@@ -59,28 +59,28 @@ static inline _Bool m4eq(mat44_t a, mat44_t b, int ulps) {
 }
 
 VTEST(test_m4mul) {
-	mat44_t a = (mat44_t){{
+	mat44 a = (mat44){{
 		{1,   2,  3,  4},
 		{5,   6,  7,  8},
 		{9,  10, 11, 12},
 		{13, 14, 15, 16},
 	}};
 
-	mat44_t b = (mat44_t){{
+	mat44 b = (mat44){{
 		{1, 0, 1, 0},
 		{1, 0, 1, 0},
 		{1, 0, 1, 0},
 		{1, 0, 1, 0},
 	}};
 
-	mat44_t ab = (mat44_t){{
+	mat44 ab = (mat44){{
 		{1+2+3+4, 0, 1+2+3+4, 0},
 		{5+6+7+8, 0, 5+6+7+8, 0},
 		{9+10+11+12, 0, 9+10+11+12, 0},
 		{13+14+15+16, 0, 13+14+15+16, 0},
 	}};
 
-	mat44_t ba = (mat44_t){{
+	mat44 ba = (mat44){{
 		{1+9, 2+10, 3+11, 4+12},
 		{1+9, 2+10, 3+11, 4+12},
 		{1+9, 2+10, 3+11, 4+12},
@@ -93,7 +93,7 @@ VTEST(test_m4mul) {
 	vassert(m4eq(m4mul(b, a), ba, 0));
 }
 
-static inline int _assert_eq_quat(quat_t a, quat_t b, int ulps, _vassert_typed_args) {
+static inline int _assert_eq_quat(quat a, quat b, int ulps, _vassert_typed_args) {
 	return
 		(vclosef(a.w, b.w, ulps) && vclosef(a.x, b.x, ulps) && vclosef(a.y, b.y, ulps) && vclosef(a.z, b.z, ulps)) ||
 		_vassert_fail("[%.200g, %.200g, %.200g, %.200g] != [%.200g, %.200g, %.200g, %.200g]", a.w, a.x, a.y, a.z, b.w, b.x, b.y, b.z);
@@ -101,18 +101,18 @@ static inline int _assert_eq_quat(quat_t a, quat_t b, int ulps, _vassert_typed_a
 #define assert_eq_quat(a, b, ulps) _vassert_wrap(_assert_eq_quat, a, b, ulps)
 
 VTEST(test_qinv) {
-	vec3_t axis = v3norm_slow(vec3(1, 1, 1));
-	quat_t q = qrot(axis, vradiansf(120));
-	quat_t iq = qrot(axis, -vradiansf(120));
+	vec3 axis = v3norm_slow(vec3(1, 1, 1));
+	quat q = qrot(axis, vradiansf(120));
+	quat iq = qrot(axis, -vradiansf(120));
 	assert_eq_quat(qinv(q), iq, 1);
 	assert_eq_quat(qinv(iq), q, 1);
 }
 
 VTEST(test_qmul) {
-	quat_t r = quat(1, 0, 0, 0);
-	quat_t i = quat(0, 1, 0, 0);
-	quat_t j = quat(0, 0, 1, 0);
-	quat_t k = quat(0, 0, 0, 1);
+	quat r = quat(1, 0, 0, 0);
+	quat i = quat(0, 1, 0, 0);
+	quat j = quat(0, 0, 1, 0);
+	quat k = quat(0, 0, 0, 1);
 
 	// real * basis elements
 	assert_eq_quat(qmul(r, r), r, 0);
@@ -141,11 +141,11 @@ VTEST(test_qmul) {
 }
 
 VTEST(test_v3rot) {
-	quat_t rot = quat(0.5, 0.5, 0.5, 0.5);
+	quat rot = quat(0.5, 0.5, 0.5, 0.5);
 
-	vec3_t i = vec3(1, 0, 0);
-	vec3_t j = vec3(0, 1, 0);
-	vec3_t k = vec3(0, 0, 1);
+	vec3 i = vec3(1, 0, 0);
+	vec3 j = vec3(0, 1, 0);
+	vec3 k = vec3(0, 0, 1);
 
 	assert_eq_v3(v3rot(i, rot), j, 1);
 	assert_eq_v3(v3rot(j, rot), k, 1);
@@ -153,7 +153,7 @@ VTEST(test_v3rot) {
 }
 
 VTEST(test_qeuler) {
-	vec3_t rot = vec3(vradiansf(90), vradiansf(-90), vradiansf(90));
+	vec3 rot = vec3(vradiansf(90), vradiansf(-90), vradiansf(90));
 
 	assert_eq_quat(qeuler(rot, VGL_XYZ), quat(0, 1/sqrtf(2), 0, 1/sqrtf(2)), 5);
 	assert_eq_quat(qeuler(rot, VGL_XZY), quat(1/sqrtf(2), 0, 0, 1/sqrtf(2)), 5);

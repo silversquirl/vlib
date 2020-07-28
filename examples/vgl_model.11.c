@@ -39,13 +39,13 @@ struct global_data {
 	double mousex, mousey;
 	GLfloat cam_rotx, cam_roty;
 	GLfloat cam_dist;
-	mat44_t cam_mat;
+	mat44 cam_mat;
 };
 
 static void update_camera(struct global_data *gd) {
-	quat_t rot = qeuler(vec3(gd->cam_rotx, gd->cam_roty, 0), VGL_XYZ);
-	vec3_t cam_dir = v3rot(vec3(0, 0, -1), rot);
-	vec3_t cam_pos = v3sop(cam_dir, *, -gd->cam_dist);
+	quat rot = qeuler(vec3(gd->cam_rotx, gd->cam_roty, 0), VGL_XYZ);
+	vec3 cam_dir = v3rot(vec3(0, 0, -1), rot);
+	vec3 cam_pos = v3sop(cam_dir, *, -gd->cam_dist);
 	gd->cam_mat = vgl_look(cam_pos, cam_dir, vec3(0, 1, 0));
 }
 
@@ -144,7 +144,7 @@ int main(int argc, char *argv[]) {
 	GLuint shader_mvp = glGetUniformLocation(shader, "mvp");
 
 	// MVP matrix
-	mat44_t proj = vgl_perspective(vradians(35.0f), vaspect(width, height), 0.1f, 100.0f);
+	mat44 proj = vgl_perspective(vradians(35.0f), vaspect(width, height), 0.1f, 100.0f);
 	gd.cam_dist = 7.0f;
 	update_camera(&gd);
 
@@ -157,7 +157,7 @@ int main(int argc, char *argv[]) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glUseProgram(shader);
 
-		mat44_t mvp = m4mul(gd.cam_mat, proj);
+		mat44 mvp = m4mul(gd.cam_mat, proj);
 		glUniformMatrix4fv(shader_mvp, 1, GL_FALSE, mvp.a);
 
 		vgl_mesh_draw(gmesh, layout);

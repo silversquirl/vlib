@@ -87,21 +87,21 @@ typedef union {
 	struct {
 		GLfloat x, y, z;
 	};
-} vec3_t;
-#define vec3(x, y, z) ((vec3_t){{x, y, z}})
+} vec3;
+#define vec3(x, y, z) ((vec3){{x, y, z}})
 
 #define v3v3op(a, op, b) vec3((a).x op (b).x, (a).y op (b).y, (a).z op (b).z)
 #define v3sop(v, op, s) vec3((v).x op s, (v).y op s, (v).z op s)
 
-static inline vec3_t v3neg(vec3_t v) {
+static inline vec3 v3neg(vec3 v) {
 	return vec3(-v.x, -v.y, -v.z);
 }
 
-static inline GLfloat v3dot(vec3_t a, vec3_t b) {
+static inline GLfloat v3dot(vec3 a, vec3 b) {
 	return a.x*b.x + a.y*b.y + a.z*b.z;
 }
 
-static inline vec3_t v3norm(vec3_t v) {
+static inline vec3 v3norm(vec3 v) {
 	GLfloat mag2 = v3dot(v, v);
 	if (mag2 == 0.0f || mag2 == 1.0f) return v;
 	GLfloat inv_mag = rsqrtf(mag2);
@@ -109,14 +109,14 @@ static inline vec3_t v3norm(vec3_t v) {
 }
 
 // Slow but accurate
-static inline vec3_t v3norm_slow(vec3_t v) {
+static inline vec3 v3norm_slow(vec3 v) {
 	GLfloat mag2 = v3dot(v, v);
 	if (mag2 == 0.0f || mag2 == 1.0f) return v;
 	GLfloat mag = sqrtf(mag2);
 	return v3sop(v, /, mag);
 }
 
-static inline vec3_t v3cross(vec3_t a, vec3_t b) {
+static inline vec3 v3cross(vec3 a, vec3 b) {
 	return vec3(
 		a.y*b.z - a.z*b.y,
 		a.z*b.x - a.x*b.z,
@@ -136,10 +136,10 @@ typedef union {
 			a31, a32, a33, a34,
 			a41, a42, a43, a44;
 	};
-} mat44_t;
+} mat44;
 
-static inline mat44_t m4mul(mat44_t a, mat44_t b) {
-	mat44_t m;
+static inline mat44 m4mul(mat44 a, mat44 b) {
+	mat44 m;
 	for (int row = 0; row < 4; row++) {
 		for (int col = 0; col < 4; col++) {
 			m.m[row][col] = 0;
@@ -151,19 +151,19 @@ static inline mat44_t m4mul(mat44_t a, mat44_t b) {
 	return m;
 }
 
-#define m4id ((mat44_t){{ \
+#define m4id ((mat44){{ \
 	{1, 0, 0, 0}, \
 	{0, 1, 0, 0}, \
 	{0, 0, 1, 0}, \
 	{0, 0, 0, 1}, \
 }})
 
-void m4print(mat44_t m);
+void m4print(mat44 m);
 
 // `dir` must be normalized
-mat44_t vgl_look(vec3_t pos, vec3_t dir, vec3_t up);
+mat44 vgl_look(vec3 pos, vec3 dir, vec3 up);
 #define vaspect(width, height) ((float)(width) / (float)(height))
-mat44_t vgl_perspective(GLfloat fov, GLfloat aspect, GLfloat near, GLfloat far);
+mat44 vgl_perspective(GLfloat fov, GLfloat aspect, GLfloat near, GLfloat far);
 // }}}
 
 // Quaternions {{{
@@ -172,8 +172,8 @@ typedef union {
 	struct {
 		GLfloat w, x, y, z;
 	};
-} quat_t;
-#define quat(w, x, y, z) ((quat_t){{w, x, y, z}})
+} quat;
+#define quat(w, x, y, z) ((quat){{w, x, y, z}})
 
 enum vgl_euler_order {
 	VGL_XYZ,
@@ -184,16 +184,16 @@ enum vgl_euler_order {
 	VGL_ZYX,
 };
 
-static inline quat_t qneg(quat_t q) {
+static inline quat qneg(quat q) {
 	return quat(-q.w, -q.x, -q.y, -q.z);
 }
 
-static inline quat_t qinv(quat_t q) {
+static inline quat qinv(quat q) {
 	GLfloat fac = 1.0f / (q.w*q.w + q.x*q.x + q.y*q.y + q.z*q.z);
 	return quat(fac * q.w, -fac * q.x, -fac * q.y, -fac * q.z);
 }
 
-static inline quat_t qmul(quat_t a, quat_t b) {
+static inline quat qmul(quat a, quat b) {
 	// Hamilton product
 	return quat(
 		a.w*b.w - a.x*b.x - a.y*b.y - a.z*b.z,
@@ -204,21 +204,21 @@ static inline quat_t qmul(quat_t a, quat_t b) {
 }
 #define qmul3(a, b, c) qmul(a, qmul(b, c))
 
-static inline vec3_t v3rot(vec3_t v, quat_t rot) {
-	quat_t q = qmul3(rot, quat(0, v.x, v.y, v.z), qinv(rot));
+static inline vec3 v3rot(vec3 v, quat rot) {
+	quat q = qmul3(rot, quat(0, v.x, v.y, v.z), qinv(rot));
 	return vec3(q.x, q.y, q.z);
 }
 
-static inline quat_t qrot(vec3_t axis, GLfloat angle) {
+static inline quat qrot(vec3 axis, GLfloat angle) {
 	angle *= 0.5f;
 	GLfloat s = sin(angle), c = cos(angle);
 	return quat(c, s*axis.x, s*axis.y, s*axis.z);
 }
 
-static inline quat_t qeuler(vec3_t angles, enum vgl_euler_order order) {
-	quat_t x = qrot(vec3(1, 0, 0), angles.x);
-	quat_t y = qrot(vec3(0, 1, 0), angles.y);
-	quat_t z = qrot(vec3(0, 0, 1), angles.z);
+static inline quat qeuler(vec3 angles, enum vgl_euler_order order) {
+	quat x = qrot(vec3(1, 0, 0), angles.x);
+	quat y = qrot(vec3(0, 1, 0), angles.y);
+	quat z = qrot(vec3(0, 0, 1), angles.z);
 
 	switch (order) {
 	case VGL_XYZ:
@@ -398,7 +398,7 @@ void vgl_unmap(struct vgl_mbuf buf) {
 // }}}
 
 // 4x4 matrix {{{
-void m4print(mat44_t m) {
+void m4print(mat44 m) {
 	for (int row = 0; row < 4; row++) {
 		for (int col = 0; col < 4; col++) {
 			printf("%4.2g ", m.m[row][col]);
@@ -408,12 +408,12 @@ void m4print(mat44_t m) {
 }
 
 // `dir` must be normalized
-mat44_t vgl_look(vec3_t pos, vec3_t dir, vec3_t up) {
+mat44 vgl_look(vec3 pos, vec3 dir, vec3 up) {
 	// Stolen from cglm
-	vec3_t s = v3norm(v3cross(dir, up));
-	vec3_t u = v3cross(s, dir);
+	vec3 s = v3norm(v3cross(dir, up));
+	vec3 u = v3cross(s, dir);
 
-	return (mat44_t){{
+	return (mat44){{
 		{s.x, u.x, -dir.x, 0},
 		{s.y, u.y, -dir.y, 0},
 		{s.z, u.z, -dir.z, 0},
@@ -421,11 +421,11 @@ mat44_t vgl_look(vec3_t pos, vec3_t dir, vec3_t up) {
 	}};
 }
 
-mat44_t vgl_perspective(GLfloat fov, GLfloat aspect, GLfloat near, GLfloat far) {
+mat44 vgl_perspective(GLfloat fov, GLfloat aspect, GLfloat near, GLfloat far) {
 	// Stolen from cglm
 	GLfloat f  = 1.0f / tanf(fov * 0.5f);
 	GLfloat fn = 1.0f / (near - far);
-	return (mat44_t){{
+	return (mat44){{
 		{f / aspect, 0, 0, 0},
 		{0, f, 0, 0},
 		{0, 0, (near+far) * fn, -1.0f},
