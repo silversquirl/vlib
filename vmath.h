@@ -1,3 +1,8 @@
+/* vmath.h
+ *
+ * Common (and obscure!) math helpers
+ */
+
 /*
  * This is free and unencumbered software released into the public domain.
  *
@@ -71,12 +76,23 @@
 #define vradians(deg) _vmath_generic_float(deg, vradians)
 #define vdegrees(rad) _vmath_generic_float(rad, vdegrees)
 
-#ifndef __STDC_IEC_559__
-#error "Your C implementation does not support IEEE-754 floating point, which is required by vmath.h"
+// Floating point feature detection crap {{{
+#if !defined(VMATH_SILENCE_ARCH) && !defined(__amd64__) && !defined(_M_AMD64)
+#pragma message "vmath does not officially support architectures other than amd64, and has not been tested on them. Use at your own risk. Defined VMATH_SILENCE_ARCH to silence this warning."
+#if !defined(__STDC_IEC_559__)
+#pragma message "Your implementation does not define __STDC_IEC_559__. This is probably fine, but if you are on an obscure architecture, you may encounter issues. Define VMATH_SILENCE_ARCH to silence this warning."
 #endif
-_vmath_cassert(sizeof (double) <= sizeof (long), "Your C implementation's double does not fit into a long, which is required by vmath.h");
-_vmath_cassert(sizeof (float) <= sizeof (int), "Your C implementation's float does not fit into an int, which is required by vmath.h");
+#endif
+
+_vmath_cassert(sizeof (double) <= sizeof (uint64_t), "Your C implementation's double does not fit into uint64_t, which is required by vmath.h");
+_vmath_cassert(sizeof (float) <= sizeof (uint32_t), "Your C implementation's float does not fit into uint32_t, which is required by vmath.h");
 _vmath_cassert(-1 == ~0, "Your C implementation does not use two's complement for negative integers, which is required by vmath.h");
+// }}}
+
+#define _vmath_ftoi(f) ((union {double f; uint64_t i;}){(f)}.i)
+#define _vmath_ftoif(f) ((union {float f; uint32_t i;}){(f)}.i)
+#define _vmath_itof(i) ((union {uint64_t i; double f;}){(i)}.f)
+#define _vmath_itoff(i) ((union {uint32_t i; float f;}){(i)}.f)
 
 // If you don't know what to put for acceptable_ulps, start at 1 and increase until you get the desired level of inaccuracy
 // With acceptable_ulps == 0, this is equivalent to a == b
@@ -84,36 +100,36 @@ static inline _Bool vclose(double a, double b, int acceptable_ulps) {
 	// See here for an explanation of how this works: https://randomascii.wordpress.com/2012/02/25/comparing-floating-point-numbers-2012-edition/
 	if (a == b) return 1;
 	if (signbit(a) != signbit(b)) return 0;
-	union {double f; long i;} ai = {a}, bi = {b};
-	long ulps = ai.i - bi.i;
+	int64_t ai = _vmath_ftoi(a), bi = _vmath_ftoi(b);
+	int64_t ulps = ai - bi;
 	return ulps <= acceptable_ulps && ulps >= -acceptable_ulps;
 }
 
 static inline _Bool vclosef(float a, float b, int acceptable_ulps) {
 	if (a == b) return 1;
 	if (signbit(a) != signbit(b)) return 0;
-	union {float f; int i;} ai = {a}, bi = {b};
-	int ulps = ai.i - bi.i;
+	int32_t ai = _vmath_ftoif(a), bi = _vmath_ftoif(b);
+	int32_t ulps = ai - bi;
 	return ulps <= acceptable_ulps && ulps >= -acceptable_ulps;
 }
 
 // TODO: implement vclosel, but there's no 80-bit int so idk how tf to do that
 
-#if defined(__STDC_IEC_559__)
 static inline float _vmath_fisrf(float f) {
 	// Fast inverse square root for float
-	union {float f; int i;} fi = {f};
-	fi.i = 0x5f3759df - (fi.i >> 1);
-	return fi.f * (1.5f - (0.5f * f * fi.f * fi.f));
+	uint32_t fi = _vmath_ftoif(f);
+	fi = 0x5f3759df - (fi >> 1);
+	float ff = _vmath_itoff(fi);
+	return ff * (1.5f - (0.5f * f * ff * ff));
 }
 
 static inline float _vmath_fisrd(double f) {
 	// Fast inverse square root for double
-	union {double f; long i;} fi = {f};
-	fi.i = 0x5fe6eb50c7b537a9 - (fi.i >> 1);
-	return fi.f * (1.5 - (0.5 * f * fi.f * fi.f));
+	uint64_t fi = _vmath_ftoi(f);
+	fi = 0x5fe6eb50c7b537a9 - (fi >> 1);
+	double ff = _vmath_itof(fi);
+	return ff * (1.5 - (0.5 * f * ff * ff));
 }
-#endif
 
 #if !defined(VMATH_NOGNU) && defined(__SSE__) && (defined(__GNUC__) || defined(__clang__) || defined(__TINYC__))
 #define VMATH_RSQRT_SSE
@@ -123,21 +139,14 @@ static inline float rsqrtf(float f) {
 	__asm__ ("rsqrtss %0, %1" : "=x" (ret) : "Ex" (f));
 	return ret;
 }
-#elif defined(__STDC_IEC_559__)
+#else
 // Fast inverse square root
 // Not as fast or accurate as rsqrtss, but it's not too bad and works anywhere that uses IEEE754
 #define rsqrtf _vmath_fisrf
-#else
-// Naive implementation
-// Accurate, but slow as fuck
-#define rsqrtf(f) (1.0f/sqrtf(f));
 #endif
 
-#if defined(__STDC_IEC_559__)
+// No rsqrt instruction for double, strangely
 #define rsqrt _vmath_fisrd
-#else
-#define rsqrt(f) (1.0/sqrt(f));
-#endif
 
 // From this very nice page http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogDeBruijn
 static inline uint8_t _vmath_debruijn(uint32_t x) {
@@ -160,5 +169,65 @@ static inline uint8_t _vmath_debruijn(uint32_t x) {
 #else
 #define visize(x) ((uint8_t)((CHAR_BIT * sizeof x) - __builtin_clz(x)))
 #endif
+
+struct vmath_rand {uint64_t a, b;};
+// Initialize a random number generator
+struct vmath_rand vmath_srand(uint32_t seed);
+// Random 32-bit number
+uint32_t vmath_rand32(struct vmath_rand *r);
+// Random number between min and max, inclusive
+uint32_t vmath_randr(struct vmath_rand *r, uint32_t min, uint32_t max);
+
+#endif
+
+#ifdef VMATH_IMPL
+
+// PCG PRNG https://www.pcg-random.org/
+// Implementation adapted from https://github.com/mattiasgustavsson/libs/blob/main/rnd.h
+// {{{
+static uint64_t vmath_murmur_fmix64(uint64_t x) {
+	x ^= x >> 33;
+	x *= 0xff51afd7ed558ccd;
+	x ^= x >> 33;
+	x *= 0xc4ceb9fe1a85ec53;
+	x ^= x >> 33;
+	return x;
+}
+
+struct vmath_rand vmath_srand(uint32_t seed) {
+	uint64_t seed_ = (uint64_t)seed << 1 | 1;
+	seed_ = vmath_murmur_fmix64(seed_);
+
+	struct vmath_rand r;
+	r.a = 0;
+	r.b = seed_ << 1 | 1;
+
+	vmath_rand32(&r);
+	r.a += vmath_murmur_fmix64(seed_);
+	vmath_rand32(&r);
+
+	return r;
+}
+
+uint32_t vmath_rand32(struct vmath_rand *r) {
+	uint64_t old = r->a;
+	r->a = old * 0x5851f42d4c957f2d + r->b;
+	uint32_t xsh = ((old >> 18) ^ old) >> 27;
+	uint32_t rot = old >> 59;
+	return xsh >> rot | xsh << ((~rot + 1) & 31);
+}
+
+uint32_t vmath_randr(struct vmath_rand *r, uint32_t min, uint32_t max) {
+	uint32_t bound = max - min + 1;
+	uint32_t thres = (~bound + 1) % bound;
+
+	uint32_t val;
+	do {
+		val = vmath_rand32(r);
+	} while (val < thres);
+
+	return val%bound + min;
+}
+// }}}
 
 #endif

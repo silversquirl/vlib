@@ -1,4 +1,5 @@
 #include "vtest.h"
+#define VMATH_IMPL
 #include "../vmath.h"
 
 #define TEST_RADIANS(type, func_suffix, float_suffix, tau_suffix) do { \
@@ -129,6 +130,53 @@ VTEST(test_debruijn) {
 	}
 }
 
+VTEST(test_rand) {
+	// This is simply a functionality test, not a statistical randomness test
+
+	for (uint32_t seed = 0; seed < 10; seed++) {
+		struct vmath_rand r1 = vmath_srand(seed);
+		struct vmath_rand r2 = vmath_srand(seed);
+
+		for (int i = 0; i < 10000; i++) {
+			uint32_t x1 = vmath_rand32(&r1);
+			uint32_t x2 = vmath_rand32(&r2);
+			if (!vassert_msg(x1 == x2, "%"PRIu32" != %"PRIu32" (seed %d, round %d)", x1, x2, seed, i)) {
+				break;
+			}
+		}
+	}
+
+	for (uint32_t seed = 0; seed < 10; seed++) {
+		struct vmath_rand r1 = vmath_srand(seed);
+		struct vmath_rand r2 = vmath_srand(seed+1);
+
+		for (int i = 0; i < 10000; i++) {
+			uint32_t x1 = vmath_rand32(&r1);
+			uint32_t x2 = vmath_rand32(&r2);
+			if (!vassert_msg(x1 != x2, "%"PRIu32" == %"PRIu32" (seeds %d,%d, round %d)", x1, x2, seed, seed+1, i)) {
+				break;
+			}
+		}
+	}
+
+
+	for (uint32_t min = 0; min < 100; min++)
+	for (uint32_t max = min; max < min + 100; max++)
+	for (uint32_t seed = 0; seed < 10; seed++) {
+		struct vmath_rand r = vmath_srand(seed);
+
+		for (int i = 0; i < 1000; i++) {
+			uint32_t x = vmath_randr(&r, min, max);
+			if (!vassert_msg(x >= min, "%"PRIu32" < %"PRIu32" (seed %d, round %d)", x, min, seed, i)) {
+				break;
+			}
+			if (!vassert_msg(x <= max, "%"PRIu32" > %"PRIu32" (seed %d, round %d)", x, max, seed, i)) {
+				break;
+			}
+		}
+	}
+}
+
 VTESTS_BEGIN
 	test_radiansf,
 	test_radiansd,
@@ -147,4 +195,6 @@ VTESTS_BEGIN
 	test_rsqrt,
 
 	test_debruijn,
+
+	test_rand,
 VTESTS_END
