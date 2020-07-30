@@ -60,7 +60,13 @@
 // }}}
 
 // Debugging {{{
+#if defined(__has_builtin) && __has_builtin(__builtin_debugtrap)
+#define breakpoint() __builtin_debugtrap()
+#elif __GNUC__ || (defined(__has_builtin) && __has_builtin(__builtin_trap))
+#define breakpoint() __builtin_trap()
+#else
 #define breakpoint() raise(SIGTRAP)
+#endif
 
 #ifdef RELEASE
 #	define _v_abort abort
@@ -149,6 +155,10 @@ static inline void *pagealloc(size_t size) {
 #define min(a, b) ((a) < (b) ? (a) : (b))
 
 #define make(type_or_val) malloc(sizeof (type_or_val))
+// TODO: overflow detection
+#define maken(count, type_or_val) malloc(count * sizeof (type_or_val))
 #define makev(type, field, count) malloc(offsetof(type, field) + count*sizeof (*(type){}.field))
+#define makenz(count, type_or_val) calloc(count, sizeof (type_or_val))
+#define makevz(type, field, count) calloc(1, offsetof(type, field) + count*sizeof (*(type){}.field))
 
 #endif
