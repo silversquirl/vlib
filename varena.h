@@ -77,16 +77,20 @@ static inline _Bool _varena_ok(struct varena *arena, size_t size) {
 }
 
 void *aalloc(struct varena **arena, size_t size) {
-	void *mem;
-	if (!_varena_ok(*arena, size)) {
-		(*arena)->prev = varena_new();
+	if (size > VARENA_SIZE - offsetof(struct varena, data)) {
+		return NULL;
+	}
 
-		if (!(*arena)->prev) return NULL;
-		(*arena) = (*arena)->prev;
+	if (!_varena_ok(*arena, size)) {
+		struct varena *a = varena_new();
+		if (!a) return NULL;
+
+		a->prev = (*arena);
+		(*arena) = a;
 		if (!_varena_ok(*arena, size)) return NULL;
 	}
 
-	mem = (*arena)->p;
+	void *mem = (*arena)->p;
 	(*arena)->p += size;
 	return mem;
 }
