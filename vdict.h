@@ -29,23 +29,21 @@
  *
  * For more information, please refer to <http://unlicense.org/>
  */
-#ifndef VDICT_H
-#define VDICT_H
 
-#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
-#define _vdict_message(fmt, ...) (fprintf(stderr, "%s: " fmt "%c", __func__, __VA_ARGS__), abort())
-#ifndef VDICT_PANIC
-#define VDICT_PANIC(...) (_vdict_message(__VA_ARGS__, '\n'), abort())
-#endif
-
 // Hash functions {{{
-#define vhash_int(i) (i)
-#define vhash_float(f) ((union {double f; uintmax_t i;}){f}.i)
-static inline uintmax_t vhash_string(const char *s) {
+static inline uint32_t vdict_hash_int(uint32_t x) {
+	// From https://stackoverflow.com/a/12996028
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = ((x >> 16) ^ x) * 0x45d9f3b;
+    x = (x >> 16) ^ x;
+    return x;
+}
+
+static inline uint32_t vdict_hash_string(const char *s) {
 	// djb2a
 	uintmax_t hash = 5381;
 	while (*s) hash = hash*33 ^ *s++;
@@ -53,216 +51,234 @@ static inline uintmax_t vhash_string(const char *s) {
 }
 // }}}
 
-#define vdict_always(a, b) 1
+// Equality functions {{{
+static inline _Bool vdict_eq_int(uint32_t a, uint32_t b) {
+    return a == b;
+}
 
-#define vdict(name) struct _vdict__##name
+static inline _Bool vdict_eq_string(const char *a, const char *b) {
+	return !strcmp(a, b);
+}
+// }}}
 
-#define vdict_decl(linkage, name, key_t, val_t) \
-	vdict(name); \
-	struct _vdict_iter__##name; \
-	linkage vdict(name) *vdict_##name##_new(void); \
-	linkage void vdict_##name##_free(vdict(name) *d); \
-	linkage int vdict_##name##_set(vdict(name) *d, key_t k, val_t v); \
-	linkage int vdict_##name##_del(vdict(name) *d, key_t k); \
-	linkage val_t *vdict_##name##_get(vdict(name) *d, key_t k)
+#ifndef VDICT_NAME
+#error "VDICT_NAME undefined. This is used as the struct name and as the function prefix"
+#endif
+#ifndef VDICT_KEY
+#error "VDICT_KEY undefined. This is used as the key type"
+#endif
+#ifndef VDICT_VAL
+#error "VDICT_KEY undefined. This is used as the value type"
+#endif
+#ifndef VDICT_HASH
+#error "VDICT_HASH undefined. This is used as the key hash function (try vdict_hash_int or vdict_hash_string)"
+#endif
+#ifndef VDICT_EQUAL
+#error "VDICT_EQUAL undefined. This is used to compare keys for equality (try vdict_eq_int or vdict_eq_string)"
+#endif
+#ifndef VDICT_LINK
+#define VDICT_LINK
+#endif
 
-// For types where the hash function is guaranteed to be collision-free (eg. float, int), eq_func may be vdict_always
-// For strings, it should be !strcmp or similar
-// For other types, it should be a custom function for comparing the type
-#define vdict_def(linkage, name, key_t, val_t, hash_func, eq_func) \
-	vdict(name) { \
-		struct _vdict_entry__##name { \
-			uintmax_t hash; \
-			_Bool removed; \
-			key_t k; \
-			val_t v; \
-		} *entries; \
-		uint32_t size, n_removed, e_capacity; \
-		\
-		/* Indices are offset by 1, with 0 representing an unused slot */ \
-		uint32_t *indices; \
-		uint32_t i_capacity; \
-	}; \
-	\
-	linkage vdict(name) *vdict_##name##_new(void) { \
-		vdict(name) *d = calloc(1, sizeof *d); \
-		if (!d) return NULL; \
-		d->e_capacity = 8; \
-		d->entries = malloc(d->e_capacity * sizeof *d->entries); \
-		if (!d->entries) { \
-			free(d); \
-			return NULL; \
-		} \
-		\
-		d->i_capacity = 32; \
-		d->indices = calloc(d->i_capacity, sizeof *d->indices); \
-		if (!d->indices) { \
-			free(d->entries); \
-			free(d); \
-			return NULL; \
-		} \
-		\
-		return d; \
-	} \
-	\
-	linkage void vdict_##name##_free(vdict(name) *d) { \
-		free(d->entries); \
-		free(d->indices); \
-		free(d); \
-	} \
-	\
-	static int _vdict_##name##_rehash(vdict(name) *d, uint32_t cap) { \
-		uint32_t *indices = calloc(cap, sizeof *d->indices); \
-		if (!indices) return 1; \
-		int offset = 0; \
-		for (uint32_t i = 0; i < d->size; i++) { \
-			struct _vdict_entry__##name entry = d->entries[i]; \
-			if (entry.removed) { \
-				offset++; \
-			} else { \
-				uint32_t hash = entry.hash % cap; \
-				while (indices[hash]) { \
-					if (++hash == cap) hash = 0; \
-				} \
-				indices[hash] = i+1-offset; \
-				d->entries[i-offset] = d->entries[i]; \
-			} \
-		} \
-		d->size -= offset; \
-		d->n_removed -= offset; \
-		free(d->indices); \
-		d->indices = indices; \
-		d->i_capacity = cap; \
-		return 0; \
-	} \
-	\
-	static void _vdict_##name##_repack(vdict(name) *d) { \
-		int offset = 0; \
-		for (uint32_t i = 0; i < d->size; i++) { \
-			struct _vdict_entry__##name entry = d->entries[i]; \
-			if (entry.removed) { \
-				offset++; \
-			} else if (offset) { \
-				uint32_t hash = entry.hash % d->i_capacity; \
-				while (d->indices[hash] != i+1) { \
-					if (++hash == d->i_capacity) hash = 0; \
-				} \
-				d->indices[hash] = i+1-offset; \
-				d->entries[i-offset] = d->entries[i]; \
-			} \
-		} \
-		d->size -= offset; \
-		d->n_removed -= offset; \
-	} \
-	\
-	static int _vdict_##name##_grow(vdict(name) *d, uint32_t count) { \
-		uint32_t cap = d->e_capacity; \
-		if (cap < d->size + count) { \
-			cap *= 1 << (d->size + count - cap); \
-			void *entries = realloc(d->entries, cap * sizeof *d->entries); \
-			if (!entries) return 1; \
-			d->entries = entries; \
-			d->e_capacity = cap; \
-		} \
-		\
-		cap = d->i_capacity; \
-		if (cap/2 < d->size + count) { \
-			cap *= 1 << (d->size + count - cap/2); \
-			if (_vdict_##name##_rehash(d, cap)) return 1; \
-		} \
-		\
-		return 0; \
-	} \
-	\
-	static int _vdict_##name##_shrink(vdict(name) *d) { \
-		uint32_t cap = d->e_capacity / 4; \
-		if (cap > d->size) { \
-			void *entries = realloc(d->entries, cap * sizeof *d->entries); \
-			if (!entries) return 1; \
-			d->entries = entries; \
-			d->e_capacity = cap; \
-		} \
-		\
-		cap = d->i_capacity / 4; \
-		if (cap/4 > d->size) { \
-			if (_vdict_##name##_rehash(d, cap)) return 1; \
-		} else if (d->n_removed > d->e_capacity/4) { \
-			_vdict_##name##_repack(d); \
-		} \
-		\
-		return 0; \
-	} \
-	\
-	linkage int vdict_##name##_set(vdict(name) *d, key_t k, val_t v) { \
-		if (_vdict_##name##_grow(d, 1)) VDICT_PANIC("Failed to allocate memory"); \
-		uintmax_t full_hash = hash_func(k); \
-		uint32_t hash = full_hash % d->i_capacity; \
-		while (d->indices[hash]) { \
-			struct _vdict_entry__##name *entry = d->entries + d->indices[hash] - 1; \
-			if (++hash == d->i_capacity) hash = 0; \
-			if (full_hash != entry->hash) continue; \
-			if (!(eq_func(k, entry->k))) continue; \
-			entry->v = v; \
-			return 0; \
-		} \
-		d->entries[d->size++] = (struct _vdict_entry__##name){full_hash, 0, k, v}; \
-		d->indices[hash] = d->size; \
-		return 1; \
-	} \
-	\
-	static uint32_t *_vdict_##name##_get_entry(vdict(name) *d, key_t k) { \
-		uintmax_t full_hash = hash_func(k); \
-		uint32_t hash = full_hash % d->i_capacity; \
-		while (d->indices[hash]) { \
-			struct _vdict_entry__##name *entry = d->entries + d->indices[hash] - 1; \
-			if (full_hash == entry->hash && (eq_func(k, entry->k))) { \
-				return d->indices + hash; \
-			} \
-			if (++hash == d->i_capacity) hash = 0; \
-		} \
-		return NULL; \
-	} \
-	\
-	linkage int vdict_##name##_del(vdict(name) *d, key_t k) { \
-		uint32_t *idx = _vdict_##name##_get_entry(d, k); \
-		if (!idx) return 0; \
-		(d->entries + *idx - 1)->removed = 1; \
-		*idx = 0; \
-		d->n_removed++; \
-		_vdict_##name##_shrink(d); \
-		return 1; \
-	} \
-	\
-	/* BEWARE: the pointer returned from this may be invalidated by calls to vdict_NAME_set or vdict_NAME_del */ \
-	linkage val_t *vdict_##name##_get(vdict(name) *d, key_t k) { \
-		uint32_t *idx = _vdict_##name##_get_entry(d, k); \
-		if (!idx) return NULL; \
-		return &(d->entries + *idx - 1)->v; \
-	} \
-	\
-	struct _vdict_iter_state__##name { \
-		vdict(name) *d; \
-		uint32_t iter; \
-		struct _vdict_entry__##name *entry; \
-		_Bool flag0, flag1; \
-	}; \
-	\
-	linkage _Bool _vdict_##name##_next(struct _vdict_iter_state__##name *st) { \
-		do { \
-			if (st->iter >= st->d->size) return 0; \
-			st->entry = st->d->entries + st->iter++; \
-		} while (st->entry->removed); \
-		return 1; \
-	} \
-	\
-	typedef int _vdict_semicolon_forcer_##__LINE__
+#ifndef _vdict_COMMON_MACROS
+#define _vdict_COMMON_MACROS
 
-#define vdict_iter(name, dict, key_decl, val_decl) \
-	for (struct _vdict_iter_state__##name _vdict_iter = {(dict), 0}; \
-		_vdict_##name##_next(&_vdict_iter); \
-		_vdict_iter.flag0 = _vdict_iter.flag1 = 0 \
-	) \
-		for (key_decl = _vdict_iter.entry->k; !_vdict_iter.flag0; _vdict_iter.flag0++) \
-			for (val_decl = _vdict_iter.entry->v; !_vdict_iter.flag1; _vdict_iter.flag1++)
+#define _vdict_SPLAT_(a, b, c, d, e, ...) a##b##c##d##e
+#define _vdict_SPLAT(...) _vdict_SPLAT_(__VA_ARGS__,,,)
+
+#define _vdict_intern(name) _vdict_SPLAT(_, VDICT_NAME, _, name)
+#define _vdict_extern(name) _vdict_SPLAT(VDICT_NAME, _, name)
+#define _vdict VDICT_NAME
+#define _vdict_entry _vdict_intern(entry)
 
 #endif
+
+struct _vdict;
+
+// Create a new dictionary
+VDICT_LINK struct _vdict *_vdict_extern(new)(void);
+
+// Delete a dictionary
+VDICT_LINK void _vdict_extern(free)(struct _vdict *d);
+
+// Insert a key/value pair into a dictionary
+// Returns 1 if the key was already in the dictionary, 0 if it was not, and -1 if out-of-memory
+VDICT_LINK int _vdict_extern(put)(struct _vdict *d, VDICT_KEY k, VDICT_VAL v);
+
+// Get the value of a key
+// Returns 1 if the key was found, 0 otherwise
+// If v is not NULL and the key was found, *v is set to the value
+VDICT_LINK _Bool _vdict_extern(get)(struct _vdict *d, VDICT_KEY k, VDICT_VAL *v);
+
+// Delete a key/value pair
+// Returns 1 if the key was found, 0 otherwise
+// If v is not NULL and the key was found, *v is set to the value before the entry is deleted
+VDICT_LINK _Bool _vdict_extern(del)(struct _vdict *d, VDICT_KEY, VDICT_VAL *v);
+
+#ifdef VDICT_IMPL
+#undef VDICT_IMPL
+
+struct _vdict_entry {
+	uint32_t hash;
+	_Bool removed;
+
+	VDICT_KEY k;
+	VDICT_VAL v;
+};
+
+struct _vdict {
+	// Total number of entries
+	uint32_t n_entry;
+	// log_2 of number of allocated entries
+	uint32_t ecap_e;
+	// log_2 of number of allocated indices in `map`
+	uint32_t mcap_e;
+
+	// Entries referenced by indices in `map`
+	struct _vdict_entry *ent;
+	// The actual hash table. Stores indices into entries, 1-indexed, or 0 for empty cell
+	uint32_t *map;
+};
+
+// Hash a key, returning an in-bounds value for the specified dict
+static inline uint32_t _vdict_intern(hash)(struct _vdict *d, VDICT_KEY k) {
+	return (VDICT_HASH(k)) >> (32 - d->mcap_e);
+}
+
+// Wrap an index to be in-bounds for the specified dict
+static inline uint32_t _vdict_intern(wrap)(struct _vdict *d, uint32_t i) {
+	return i & (1 << d->mcap_e)-1;
+}
+
+// Get the entry of a hash table index
+static inline struct _vdict_entry *_vdict_intern(entry)(struct _vdict *d, uint32_t i) {
+	return d->ent + d->map[i] - 1;
+}
+
+// Return 1 if the entry of the given hash table index exists and has a value, else 0
+static inline _Bool _vdict_intern(exists)(struct _vdict *d, uint32_t i) {
+	return d->map[i] && !_vdict_intern(entry)(d, i)->removed;
+}
+
+// Find the hash table index of a key
+static uint32_t _vdict_intern(index)(struct _vdict *d, VDICT_KEY k, uint32_t h) {
+	uint32_t i = h;
+	for (;;) {
+		if (!d->map[i]) return i;
+		struct _vdict_entry *ent = _vdict_intern(entry)(d, i);
+
+		if (!ent->removed && ent->hash == h && VDICT_EQUAL(ent->k, k)) {
+			return i;
+		}
+
+		i = _vdict_intern(wrap)(d, i + 1);
+	}
+}
+
+// Create a dict
+VDICT_LINK struct _vdict *_vdict_extern(new)(void) {
+	struct _vdict *d = malloc(sizeof *d);
+	d->n_entry = 0;
+
+	d->ecap_e = 4;
+	d->ent = malloc((1 << d->ecap_e) * sizeof *d->ent);
+	d->mcap_e = 5;
+	d->map = calloc((1 << d->mcap_e), sizeof *d->map);
+
+	return d;
+}
+
+// Delete a dict
+VDICT_LINK void _vdict_extern(free)(struct _vdict *d) {
+	free(d->ent);
+	free(d->map);
+	free(d);
+}
+
+// Put a k/v pair, rehashing if load factor >=50%
+VDICT_LINK int _vdict_extern(put)(struct _vdict *d, VDICT_KEY k, VDICT_VAL v) {
+	if (2 * d->n_entry >= 1 << d->mcap_e) {
+		uint32_t *map = d->map;
+		size_t mcap = 1 << d->mcap_e;
+		d->map = calloc(1 << ++d->mcap_e, sizeof *d->map);
+		if (!d->map) {
+			d->map = map;
+			d->mcap_e--;
+			return -1;
+		}
+
+		uint32_t geti = 0, puti = 0;
+		while (geti < d->n_entry) {
+			struct _vdict_entry ent = d->ent[geti++];
+			if (!ent.removed) {
+				ent.hash = _vdict_intern(hash)(d, ent.k);
+				if (puti != geti) {
+					d->ent[puti] = ent;
+				}
+				puti++;
+
+				uint32_t i = _vdict_intern(index)(d, ent.k, ent.hash);
+				d->map[i] = puti; // Increment is before this, because indices are 1-indexed
+			}
+		}
+
+		free(map);
+	}
+
+	uint32_t h = _vdict_intern(hash)(d, k);
+	uint32_t i = _vdict_intern(index)(d, k, h);
+
+	int ret;
+	if (_vdict_intern(exists)(d, i)) {
+		ret = 1; // Already in dict
+	} else {
+		ret = 0; // Added to dict
+		d->map[i] = ++d->n_entry;
+
+		// Grow entry array if needed
+		if (d->n_entry >= (1 << d->ecap_e)) {
+			struct _vdict_entry *ent = d->ent;
+			d->ent = realloc(d->ent, (1 << ++d->ecap_e) * sizeof *d->ent);
+			if (!d->ent) {
+				d->ent = ent;
+				d->ecap_e--;
+				return -1;
+			}
+		}
+	}
+
+	*_vdict_intern(entry)(d, i) = (struct _vdict_entry){h, 0, k, v};
+	return ret;
+}
+
+VDICT_LINK _Bool _vdict_extern(get)(struct _vdict *d, VDICT_KEY k, VDICT_VAL *v) {
+	uint32_t h = _vdict_intern(hash)(d, k);
+	uint32_t i = _vdict_intern(index)(d, k, h);
+
+	if (!_vdict_intern(exists)(d, i)) return 0;
+
+	if (v) *v = _vdict_intern(entry)(d, i)->v;
+	return 1;
+}
+
+VDICT_LINK _Bool _vdict_extern(del)(struct _vdict *d, VDICT_KEY k, VDICT_VAL *v) {
+	uint32_t h = _vdict_intern(hash)(d, k);
+	uint32_t i = _vdict_intern(index)(d, k, h);
+
+	if (!_vdict_intern(exists)(d, i)) return 0;
+
+	struct _vdict_entry *ent = _vdict_intern(entry)(d, i);
+	if (v) *v = ent->v;
+	ent->removed = 1;
+
+	return 1;
+}
+
+#endif
+
+#undef VDICT_LINK
+#undef VDICT_EQUAL
+#undef VDICT_HASH
+#undef VDICT_KEY
+#undef VDICT_VAL
+#undef VDICT_NAME

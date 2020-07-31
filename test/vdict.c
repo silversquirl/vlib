@@ -1,42 +1,52 @@
 #include <string.h>
 #include "vtest.h"
+
+#define VDICT_NAME vdict_s2s
+#define VDICT_KEY const char *
+#define VDICT_VAL const char *
+#define VDICT_HASH vdict_hash_string
+#define VDICT_EQUAL vdict_eq_string
+#define VDICT_IMPL
 #include "../vdict.h"
 
-vdict_decl(static, s2s, const char *, const char *);
-vdict_def(static, s2s, const char *, const char *, vhash_string, !strcmp);
-
-vdict(s2s) *d = NULL;
+struct vdict_s2s *d = NULL;
 
 VTEST(test_new) {
 	d = vdict_s2s_new();
 	vassert_not_null(d);
 }
 
-VTEST(test_set) {
+VTEST(test_put) {
 	if (!d) vskip();
 
-	vassert(vdict_s2s_set(d, "foo", "bar"));
-	vassert(vdict_s2s_set(d, "bar", "quux"));
+	vassert_eq(vdict_s2s_put(d, "foo", "bar"), 0);
+	vassert_eq(vdict_s2s_put(d, "bar", "quux"), 0);
 
-	vassertn(vdict_s2s_set(d, "bar", "frob"));
-	vassertn(vdict_s2s_set(d, "foo", "baz"));
+	vassert_eq(vdict_s2s_put(d, "bar", "frob"), 1);
+	vassert_eq(vdict_s2s_put(d, "foo", "baz"), 1);
 }
 
 VTEST(test_del) {
 	if (!d) vskip();
 
-	vassert(vdict_s2s_set(d, "delete me", "sekrit data"));
-	vassert_not_null(vdict_s2s_get(d, "delete me"));
-	vassert(vdict_s2s_del(d, "delete me"));
-	vassert_null(vdict_s2s_get(d, "delete me"));
-	vassertn(vdict_s2s_del(d, "delete me"));
-	vassert_null(vdict_s2s_get(d, "delete me"));
+	const char *v;
+	vassert_eq(vdict_s2s_put(d, "delete me", "sekrit data"), 0);
+	vassert(vdict_s2s_get(d, "delete me", &v));
+	vassert_eq_s(v, "sekrit data");
+
+	vassert(vdict_s2s_del(d, "delete me", &v));
+	vassert_eq_s(v, "sekrit data");
+	vassertn(vdict_s2s_get(d, "delete me", NULL));
+
+	vassertn(vdict_s2s_del(d, "delete me", NULL));
+	vassertn(vdict_s2s_get(d, "delete me", NULL));
 }
 
 #define get_expect(k, v) do { \
-		const char **s = vdict_s2s_get(d, k); \
+		const char *s = NULL; \
+		vassert(vdict_s2s_get(d, k, &s)); \
 		if (vassert_msg(s, "d[\"%s\"] == NULL", k)) { \
-			vassert_eq_s(*s, v); \
+			vassert_eq_s(s, v); \
 		} \
 	} while (0)
 VTEST(test_get) {
@@ -49,17 +59,17 @@ VTEST(test_get) {
 VTEST(test_rehash) {
 	if (!d) vskip();
 
-	vassert_eq(d->e_capacity, 8);
-	vassert_eq(d->i_capacity, 32);
+	vassert_eq(d->ecap_e, 4);
+	vassert_eq(d->mcap_e, 5);
 
-	vassert(vdict_s2s_set(d, "1", "one"));
-	vassert(vdict_s2s_set(d, "2", "two"));
-	vassert(vdict_s2s_set(d, "3", "three"));
-	vassert(vdict_s2s_set(d, "4", "four"));
-	vassert(vdict_s2s_set(d, "5", "five"));
-	vassert(vdict_s2s_set(d, "6", "six"));
-	vassert(vdict_s2s_set(d, "7", "seven"));
-	vassert(vdict_s2s_set(d, "8", "eight"));
+	vassert_eq(vdict_s2s_put(d, "1", "one"), 0);
+	vassert_eq(vdict_s2s_put(d, "2", "two"), 0);
+	vassert_eq(vdict_s2s_put(d, "3", "three"), 0);
+	vassert_eq(vdict_s2s_put(d, "4", "four"), 0);
+	vassert_eq(vdict_s2s_put(d, "5", "five"), 0);
+	vassert_eq(vdict_s2s_put(d, "6", "six"), 0);
+	vassert_eq(vdict_s2s_put(d, "7", "seven"), 0);
+	vassert_eq(vdict_s2s_put(d, "8", "eight"), 0);
 
 	get_expect("1", "one");
 	get_expect("2", "two");
@@ -70,17 +80,17 @@ VTEST(test_rehash) {
 	get_expect("7", "seven");
 	get_expect("8", "eight");
 
-	vassert_eq(d->e_capacity, 16);
-	vassert_eq(d->i_capacity, 32);
+	vassert_eq(d->ecap_e, 4);
+	vassert_eq(d->mcap_e, 5);
 
-	vassert(vdict_s2s_set(d, "9", "nine"));
-	vassert(vdict_s2s_set(d, "10", "ten"));
-	vassert(vdict_s2s_set(d, "11", "eleven"));
-	vassert(vdict_s2s_set(d, "12", "twelve"));
-	vassert(vdict_s2s_set(d, "13", "thirteen"));
-	vassert(vdict_s2s_set(d, "14", "fourteen"));
-	vassert(vdict_s2s_set(d, "15", "fifteen"));
-	vassert(vdict_s2s_set(d, "16", "sixteen"));
+	vassert_eq(vdict_s2s_put(d, "9", "nine"), 0);
+	vassert_eq(vdict_s2s_put(d, "10", "ten"), 0);
+	vassert_eq(vdict_s2s_put(d, "11", "eleven"), 0);
+	vassert_eq(vdict_s2s_put(d, "12", "twelve"), 0);
+	vassert_eq(vdict_s2s_put(d, "13", "thirteen"), 0);
+	vassert_eq(vdict_s2s_put(d, "14", "fourteen"), 0);
+	vassert_eq(vdict_s2s_put(d, "15", "fifteen"), 0);
+	vassert_eq(vdict_s2s_put(d, "16", "sixteen"), 0);
 
 	get_expect("1", "one");
 	get_expect("2", "two");
@@ -100,11 +110,13 @@ VTEST(test_rehash) {
 	get_expect("15", "fifteen");
 	get_expect("16", "sixteen");
 
-	vassert_eq(d->e_capacity, 32);
-	vassert_eq(d->i_capacity, 64);
+	vassert_eq(d->ecap_e, 5);
+	vassert_eq(d->mcap_e, 6);
 }
 
 VTEST(test_iter) {
+	vskip();
+#if 0
 	const char *order[] = {
 		"foo", "baz",
 		"bar", "frob",
@@ -144,56 +156,7 @@ VTEST(test_iter) {
 		vfail("Reached end of dict too early");
 		return;
 	}
-}
-
-VTEST(test_repack) {
-	if (!d) vskip();
-
-	vassert_eq(d->n_removed, 0);
-
-	get_expect("1", "one");
-	vassert(vdict_s2s_del(d, "1"));
-	get_expect("2", "two");
-	vassert(vdict_s2s_del(d, "2"));
-	get_expect("3", "three");
-	vassert(vdict_s2s_del(d, "3"));
-	get_expect("4", "four");
-	vassert(vdict_s2s_del(d, "4"));
-
-	vassert_eq(d->n_removed, 4);
-
-	get_expect("5", "five");
-	vassert(vdict_s2s_del(d, "5"));
-	get_expect("6", "six");
-	vassert(vdict_s2s_del(d, "6"));
-	get_expect("7", "seven");
-	vassert(vdict_s2s_del(d, "7"));
-	get_expect("8", "eight");
-	vassert(vdict_s2s_del(d, "8"));
-
-	vassert_eq(d->n_removed, 8);
-
-	get_expect("9", "nine");
-	vassert(vdict_s2s_del(d, "9"));
-
-	vassert_eq(d->n_removed, 0);
-
-	get_expect("10", "ten");
-	vassert(vdict_s2s_del(d, "10"));
-	get_expect("11", "eleven");
-	vassert(vdict_s2s_del(d, "11"));
-	get_expect("12", "twelve");
-	vassert(vdict_s2s_del(d, "12"));
-	get_expect("13", "thirteen");
-	vassert(vdict_s2s_del(d, "13"));
-	get_expect("14", "fourteen");
-	vassert(vdict_s2s_del(d, "14"));
-	get_expect("15", "fifteen");
-	vassert(vdict_s2s_del(d, "15"));
-	get_expect("16", "sixteen");
-	vassert(vdict_s2s_del(d, "16"));
-
-	vassert_eq(d->n_removed, 7);
+#endif
 }
 
 VTEST(test_free) {
@@ -204,11 +167,10 @@ VTEST(test_free) {
 
 VTESTS_BEGIN
 	test_new,
-	test_set,
+	test_put,
 	test_del,
 	test_get,
 	test_rehash,
-	test_iter,
-	test_repack,
+	//test_iter,
 	test_free,
 VTESTS_END
