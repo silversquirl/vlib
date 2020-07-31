@@ -8,6 +8,8 @@ VTEST_CC := $(CC) -std=c11
 VTEST_CFLAGS := -g -O0 -I$(VTEST_HEADER_DIR)/ $(VTEST_CFLAGS)
 VTEST_LDFLAGS ?=
 
+VTEST_PROF ?=
+
 .PHONY: test test\:clean
 test: $(VTEST_TESTS)
 test\:clean:
@@ -17,7 +19,7 @@ test\:clean:
 .SECONDARY: $(patsubst test\:%,$(VTEST_DIR)/.vtest_cache/%,$(VTEST_TESTS))
 test\:%: $(VTEST_DIR)/.vtest_cache/%
 	@echo '[TEST]  ' $(patsubst test:%,%,$@)
-	@./$<
+	@$(VTEST_PROF) ./$<
 
 $(VTEST_DIR)/.vtest_cache/%: $(VTEST_DIR)/%.c $(VTEST_HEADER_DIR)/vtest.h $(VTEST_DEPS)
 	@echo '[CC]    ' $(patsubst %.c,%,$<)
