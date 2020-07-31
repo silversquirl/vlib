@@ -149,6 +149,9 @@ VTEST(test_write_testfile) {
 
 	// Using this rather than vassert_eq_s because these strings are kiiiiinda long
 	vassert(!strcmp(written_data, test_data));
+
+	free(test_data);
+	free(written_data);
 }
 
 VTEST(test_next_codepoint) {
@@ -172,6 +175,7 @@ VTEST(test_next_testfile) {
 		if (!vassert_msg(point == points[i], "Codepoint %zu at byte %zu incorrect: expected U+%.04"PRIX32", got U+%.04"PRIX32, i, p - bytes, points[i], point)) break;
 	}
 
+	free(points);
 	free(bytes);
 }
 
@@ -200,6 +204,7 @@ VTEST(test_prev_testfile) {
 		if (!vassert_msg(point == points[npoint], "Codepoint %zu at byte %zu incorrect: expected U+%.04"PRIX32", got U+%.04"PRIX32, npoint, p - bytes, points[npoint], point)) break;
 	} while (npoint);
 
+	free(points);
 	free(bytes);
 }
 

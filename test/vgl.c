@@ -175,6 +175,8 @@ VTEST(test_load_vmesh) {
 	vassertn(vgl_mesh_highpoly(mesh));
 
 	// TODO: validate actual mesh data
+
+	vgl_mesh_del(mesh);
 }
 
 VTESTS_BEGIN
