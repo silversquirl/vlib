@@ -34,6 +34,28 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#ifndef VDICT_NAME
+#error "VDICT_NAME undefined. This is used as the struct name and as the function prefix"
+#endif
+#ifndef VDICT_KEY
+#error "VDICT_KEY undefined. This is used as the key type"
+#endif
+#ifndef VDICT_VAL
+#error "VDICT_KEY undefined. This is used as the value type"
+#endif
+#ifndef VDICT_HASH
+#error "VDICT_HASH undefined. This is used as the key hash function (try vdict_hash_int or vdict_hash_string)"
+#endif
+#ifndef VDICT_EQUAL
+#error "VDICT_EQUAL undefined. This is used to compare keys for equality (try vdict_eq_int or vdict_eq_string)"
+#endif
+#ifndef VDICT_LINK
+#define VDICT_LINK
+#endif
+
+#ifndef _vdict_COMMON
+#define _vdict_COMMON
+
 // Hash functions {{{
 static inline uint32_t vdict_hash_int(uint32_t x) {
 	// From https://stackoverflow.com/a/12996028
@@ -60,28 +82,6 @@ static inline _Bool vdict_eq_string(const char *a, const char *b) {
 	return !strcmp(a, b);
 }
 // }}}
-
-#ifndef VDICT_NAME
-#error "VDICT_NAME undefined. This is used as the struct name and as the function prefix"
-#endif
-#ifndef VDICT_KEY
-#error "VDICT_KEY undefined. This is used as the key type"
-#endif
-#ifndef VDICT_VAL
-#error "VDICT_KEY undefined. This is used as the value type"
-#endif
-#ifndef VDICT_HASH
-#error "VDICT_HASH undefined. This is used as the key hash function (try vdict_hash_int or vdict_hash_string)"
-#endif
-#ifndef VDICT_EQUAL
-#error "VDICT_EQUAL undefined. This is used to compare keys for equality (try vdict_eq_int or vdict_eq_string)"
-#endif
-#ifndef VDICT_LINK
-#define VDICT_LINK
-#endif
-
-#ifndef _vdict_COMMON_MACROS
-#define _vdict_COMMON_MACROS
 
 #define _vdict_SPLAT_(a, b, c, d, e, ...) a##b##c##d##e
 #define _vdict_SPLAT(...) _vdict_SPLAT_(__VA_ARGS__,,,)

@@ -1,4 +1,6 @@
 #include <string.h>
+#define VMATH_IMPL
+#include "../vmath.h"
 #include "vtest.h"
 
 #define VDICT_NAME vdict_s2s
@@ -9,11 +11,23 @@
 #define VDICT_IMPL
 #include "../vdict.h"
 
+#define VDICT_NAME vdict_i2i
+#define VDICT_KEY uint32_t
+#define VDICT_VAL uint32_t
+#define VDICT_HASH vdict_hash_int
+#define VDICT_EQUAL vdict_eq_int
+#define VDICT_IMPL
+#include "../vdict.h"
+
 struct vdict_s2s *d = NULL;
+struct vdict_i2i *di = NULL;
 
 VTEST(test_new) {
 	d = vdict_s2s_new();
 	vassert_not_null(d);
+
+	di = vdict_i2i_new();
+	vassert_not_null(di);
 }
 
 VTEST(test_put) {
@@ -159,18 +173,101 @@ VTEST(test_iter) {
 #endif
 }
 
+// Property-based/PRNG-driven tests {{{
+enum {
+	PROP_RANDOM_SEED = 1,
+	PROP_ITER_COUNT = 5000,
+};
+
+VTEST(test_put_prop) {
+	struct vmath_rand r = vmath_srand(PROP_RANDOM_SEED);
+	for (int i = 0; i < PROP_ITER_COUNT; i++) {
+		uint32_t k = vmath_rand32(&r);
+		uint32_t v = vmath_rand32(&r);
+
+		// Ensure key isn't in dict already
+		vassertn(vdict_i2i_get(di, k, NULL));
+
+		// Ensure put inserts
+		vassert_eq(vdict_i2i_put(di, k, v), 0);
+
+		// Ensure value matches
+		uint32_t v2;
+		vassert(vdict_i2i_get(di, k, &v2));
+		vassert_eq(v, v2);
+	}
+}
+
+VTEST(test_get_prop) {
+	struct vmath_rand r = vmath_srand(PROP_RANDOM_SEED);
+	for (int i = 0; i < PROP_ITER_COUNT; i++) {
+		uint32_t k = vmath_rand32(&r);
+		uint32_t v = vmath_rand32(&r);
+
+		// Ensure values match put values
+		uint32_t v2;
+		vassert(vdict_i2i_get(di, k, &v2));
+		vassert_eq(v, v2);
+	}
+
+	for (int i = 0; i < PROP_ITER_COUNT; i++) {
+		uint32_t k = vmath_rand32(&r);
+
+		// Ensure never-used keys are not in the dict
+		vassertn(vdict_i2i_get(di, k, NULL));
+	}
+}
+
+VTEST(test_del_prop) {
+	struct vmath_rand r = vmath_srand(PROP_RANDOM_SEED);
+	for (int i = 0; i < PROP_ITER_COUNT; i++) {
+		uint32_t k = vmath_rand32(&r);
+		uint32_t v = vmath_rand32(&r);
+
+		// Ensure deletion succeeds
+		uint32_t v2;
+		vassert(vdict_i2i_del(di, k, &v2));
+		// Ensure value matches
+		vassert_eq(v, v2);
+		// Ensure value does not exist any more
+		vassertn(vdict_i2i_get(di, k, NULL));
+	}
+
+	// Double ensure values do not exist any more
+	r = vmath_srand(PROP_RANDOM_SEED);
+	for (int i = 0; i < PROP_ITER_COUNT; i++) {
+		uint32_t k = vmath_rand32(&r);
+		uint32_t v = vmath_rand32(&r);
+
+		vassertn(vdict_i2i_get(di, k, NULL));
+	}
+}
+// }}}
+
 VTEST(test_free) {
-	if (!d) vskip();
+	if (!d && !di) vskip();
+
 	vdict_s2s_free(d);
 	d = NULL;
+
+	vdict_i2i_free(di);
+	di = NULL;
 }
 
 VTESTS_BEGIN
 	test_new,
+
+	// Simple case-by-case tests
 	test_put,
 	test_del,
 	test_get,
 	test_rehash,
 	//test_iter,
+
+	// Property-based tests
+	test_put_prop,
+	test_get_prop,
+	test_del_prop,
+
 	test_free,
 VTESTS_END
