@@ -6,7 +6,7 @@ CC := $(CC) -pedantic
 CFLAGS = -Wall -g
 LDFLAGS = -lm -lpthread -lrt
 
-TARGETS = channel coroutines network vgl_gol vgl_model vgl_image
+TARGETS = channel coroutines network vgl_gol vgl_model vgl_image zcat
 
 .PHONY: all clean
 all: $(TARGETS)
