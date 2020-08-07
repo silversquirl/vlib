@@ -133,6 +133,11 @@
 #define WHITE 7
 // }}}
 
+// Type-safeish casts {{{
+// Safeishly cast a pointer to void *
+#define ptrcast(p) ((struct {void *v}){p}.v)
+// }}}
+
 #define _v_alignup(x, a) (~(~x+1 & ~a+1) + 1)
 
 #ifdef MAP_ANONYMOUS
@@ -150,6 +155,24 @@ static inline void *pagealloc(size_t size) {
 #else
 #	define pagealloc(size) _Pragma("GCC error \"No implementation for pagealloc on this platform\"") _v_ERROR_UNSUPPORTED_PLATFORM
 #endif
+
+static inline void *mapfile(const char *fn, size_t *len) {
+	int fd = open(fn, O_RDONLY);
+	if (fd < 0) return NULL;
+
+	struct stat st;
+	if (fstat(fd, &st)) {
+		close(fd);
+		return NULL;
+	}
+
+	if (len) *len = st.st_size;
+	void *mem = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	close(fd);
+	return mem;
+}
+
+typedef unsigned char ubyte;
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 #define min(a, b) ((a) < (b) ? (a) : (b))
