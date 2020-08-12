@@ -158,7 +158,7 @@ static inline mat44 m4mul(mat44 a, mat44 b) {
 	{0, 0, 0, 1}, \
 }})
 
-static inline mat44 m4transform(vec3 t) {
+static inline mat44 m4translate(vec3 t) {
 	return (mat44){{
 		{1, 0, 0, 0},
 		{0, 1, 0, 0},
