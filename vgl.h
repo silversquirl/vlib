@@ -158,6 +158,24 @@ static inline mat44 m4mul(mat44 a, mat44 b) {
 	{0, 0, 0, 1}, \
 }})
 
+static inline mat44 m4transform(vec3 t) {
+	return (mat44){{
+		{1, 0, 0, 0},
+		{0, 1, 0, 0},
+		{0, 0, 1, 0},
+		{t.x, t.y, t.z, 1},
+	}};
+}
+
+static inline mat44 m4scale(vec3 s) {
+	return (mat44){{
+		{s.x, 0, 0, 0},
+		{0, s.y, 0, 0},
+		{0, 0, s.z, 0},
+		{0, 0, 0, 1},
+	}};
+}
+
 void m4print(mat44 m);
 
 // `dir` must be normalized
@@ -207,6 +225,20 @@ static inline quat qmul(quat a, quat b) {
 static inline vec3 v3rot(vec3 v, quat rot) {
 	quat q = qmul3(rot, quat(0, v.x, v.y, v.z), qinv(rot));
 	return vec3(q.x, q.y, q.z);
+}
+
+static inline mat44 m4quat(quat q) {
+	return m4mul((mat44){{
+		{ q.w,  q.z, -q.y,  q.x},
+		{-q.z,  q.w,  q.x,  q.y},
+		{ q.y, -q.x,  q.w,  q.z},
+		{-q.x, -q.y, -q.z,  q.w},
+	}}, (mat44){{
+		{ q.w,  q.z, -q.y, -q.x},
+		{-q.z,  q.w,  q.x, -q.y},
+		{ q.y, -q.x,  q.w, -q.z},
+		{ q.x,  q.y,  q.z,  q.w},
+	}});
 }
 
 static inline quat qrot(vec3 axis, GLfloat angle) {
@@ -407,7 +439,7 @@ void m4print(mat44 m) {
 	}
 }
 
-// `dir` must be normalized
+// `dir` and `up` must be normalized
 mat44 vgl_look(vec3 pos, vec3 dir, vec3 up) {
 	// Stolen from cglm
 	vec3 s = v3norm(v3cross(dir, up));
@@ -425,6 +457,7 @@ mat44 vgl_perspective(GLfloat fov, GLfloat aspect, GLfloat near, GLfloat far) {
 	// Stolen from cglm
 	GLfloat f  = 1.0f / tanf(fov * 0.5f);
 	GLfloat fn = 1.0f / (near - far);
+
 	return (mat44){{
 		{f / aspect, 0, 0, 0},
 		{0, f, 0, 0},
