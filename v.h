@@ -88,8 +88,8 @@
 #	define TODO _Pragma("GCC error \"TODO while compiling in release mode\"") _v_ERROR_TODO_IN_RELEASE_MODE
 #	define DEBUG(...) _Pragma("GCC error \"DEBUG while compiling in release mode\"") _v_ERROR_DEBUG_IN_RELEASE_MODE
 #else
-#	define TODO (_Pragma("message \"TODO\"") _v_panic("TODO", GREEN, __FILE__, __func__, __LINE__, "", '\n'))
-#	define DEBUG(...) (_Pragma("message \"DEBUG\"") _v_message("DEBUG:  ", GREEN, __FILE__, __func__, __LINE__, __VA_ARGS__, '\n'))
+#	define TODO _v_panic("TODO", GREEN, __FILE__, __func__, __LINE__, "", '\n')
+#	define DEBUG(...) _v_message("DEBUG:  ", GREEN, __FILE__, __func__, __LINE__, __VA_ARGS__, '\n')
 #endif
 
 #define assert(cond, ...) do { dif (!(cond)) _v_panic("ASSERT: ", YELLOW, __FILE__, __func__, __LINE__, __VA_ARGS__, '\n'); } while (0)
