@@ -53,7 +53,7 @@ void parse_and_print(enum vjson_type (*parse)(const char **src, size_t *len), co
 		break;
 
 	case VJSON_ARRAY:
-		puts("ARRAY:");
+		printf("ARRAY: %zu items\n", vjson_get_size(start));
 
 		start = vjson_enter(start);
 		size_t alen = *src - start;
@@ -64,7 +64,7 @@ void parse_and_print(enum vjson_type (*parse)(const char **src, size_t *len), co
 		break;
 
 	case VJSON_OBJECT:
-		puts("OBJECT:");
+		printf("OBJECT: %zu items\n", vjson_get_size(start));
 
 		start = vjson_enter(start);
 		size_t olen = *src - start;
@@ -82,8 +82,8 @@ int main() {
 		"0 -0	123 -123	123.5 -123.5	0.5 -0.5\n"
 		"true false	null\n"
 		"\"Hello, world!\" \"\\\" \\\\ \\/ \\b \\f \\n \\r \\t \\u00a7\"\n"
-		"[] [0, 1, 2] [[0], [0], [1], [\"foo\"], false]\n"
-		"{} {\"hello\": \"world\"} {\".\": [1, 2, 3, {}, {\"foo\": \"bar\"}]}\n"
+		"[] [0, 1, 2] [[0], [0, 2], [1], [\"foo\"], false]\n"
+		"{} {\"hello\": \"world\"} {\".\": [1, 2, 3, {}, {\"foo\": \"bar\"}]} [{\"1\": 1, \"2\": 2}]\n"
 		;
 
 	size_t len = strlen(source);

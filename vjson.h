@@ -61,6 +61,8 @@ const char *vjson_enter(const char *src);
 long double vjson_get_number(const char *src);
 _Bool vjson_get_bool(const char *src);
 char *vjson_get_string(const char *src);
+// Get the number of items in an array or object
+size_t vjson_get_size(const char *src);
 
 #endif
 
@@ -363,6 +365,36 @@ char *vjson_get_string(const char *src) {
 	char *val;
 	_vjson_string(&src, NULL, &val);
 	return val;
+}
+
+size_t vjson_get_size(const char *src) {
+	while (strchr(" \t\n", *src)) src++;
+
+	// Skip starting delimiter
+	src++;
+
+	while (strchr(" \t\n", *src)) src++;
+	if (*src == ']' || *src == '}') return 0;
+
+	size_t count = 1;
+	unsigned level = 1;
+	while (level) {
+		if (*src == '"') {
+			_vjson_string(&src, NULL, NULL);
+		} else {
+			if (*src == '[' || *src == '{') {
+				level++;
+			} else if (*src == ']' || *src == '}') {
+				level--;
+			} else if (level == 1 && *src == ',') {
+				count++;
+			}
+
+			src++;
+		}
+	}
+
+	return count;
 }
 
 #endif
