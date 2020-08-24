@@ -19,13 +19,13 @@ void print_str(const char *s) {
 	puts("\"");
 }
 
-void parse_and_print(enum vjson_type (*parse)(const char **src, size_t *len), const char **src, size_t *len, int indent) {
+void parse_and_print(enum vjson_type (*parse)(const char **src, const char *end), const char **src, const char *end, int indent) {
 	for (int i = 0; i < indent; i++) {
 		printf("  ");
 	}
 
 	const char *start = *src;
-	switch (parse(src, len)) {
+	switch (parse(src, end)) {
 	case VJSON_ERROR:
 		panic("Parse error");
 
@@ -56,9 +56,8 @@ void parse_and_print(enum vjson_type (*parse)(const char **src, size_t *len), co
 		printf("ARRAY: %zu items\n", vjson_get_size(start));
 
 		start = vjson_enter(start);
-		size_t alen = *src - start;
 		while (*start != ']') {
-			parse_and_print(vjson_item, &start, &alen, indent+1);
+			parse_and_print(vjson_item, &start, *src, indent+1);
 		}
 
 		break;
@@ -67,10 +66,9 @@ void parse_and_print(enum vjson_type (*parse)(const char **src, size_t *len), co
 		printf("OBJECT: %zu items\n", vjson_get_size(start));
 
 		start = vjson_enter(start);
-		size_t olen = *src - start;
 		while (*start != '}') {
-			parse_and_print(vjson_key, &start, &olen, indent+1);
-			parse_and_print(vjson_item, &start, &olen, indent+1);
+			parse_and_print(vjson_key, &start, *src, indent+1);
+			parse_and_print(vjson_item, &start, *src, indent+1);
 		}
 
 		break;
@@ -86,10 +84,10 @@ int main() {
 		"{} {\"hello\": \"world\"} {\".\": [1, 2, 3, {}, {\"foo\": \"bar\"}]} [{\"1\": 1, \"2\": 2}]\n"
 		;
 
-	size_t len = strlen(source);
+	const char *end = source + strlen(source);
 
-	while (len) {
-		parse_and_print(vjson_value, &source, &len, 0);
+	while (source < end) {
+		parse_and_print(vjson_value, &source, end, 0);
 	}
 
 	return 0;

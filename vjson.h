@@ -44,16 +44,16 @@ enum vjson_type {
 	VJSON_OBJECT,
 };
 
-enum vjson_type vjson_value(const char **src, size_t *len);
-enum vjson_type vjson_key(const char **src, size_t *len);
-enum vjson_type vjson_item(const char **src, size_t *len);
+enum vjson_type vjson_value(const char **src, const char *end);
+enum vjson_type vjson_key(const char **src, const char *end);
+enum vjson_type vjson_item(const char **src, const char *end);
 
-enum vjson_type vjson_number(const char **src, size_t *len);
-enum vjson_type vjson_bool(const char **src, size_t *len);
-enum vjson_type vjson_null(const char **src, size_t *len);
-enum vjson_type vjson_string(const char **src, size_t *len);
-enum vjson_type vjson_array(const char **src, size_t *len);
-enum vjson_type vjson_object(const char **src, size_t *len);
+enum vjson_type vjson_number(const char **src, const char *end);
+enum vjson_type vjson_bool(const char **src, const char *end);
+enum vjson_type vjson_null(const char **src, const char *end);
+enum vjson_type vjson_string(const char **src, const char *end);
+enum vjson_type vjson_array(const char **src, const char *end);
+enum vjson_type vjson_object(const char **src, const char *end);
 
 // Skip the opening delimiter of an array or object
 const char *vjson_enter(const char *src);
@@ -72,20 +72,18 @@ size_t vjson_get_size(const char *src);
 #include <stdlib.h>
 #include <string.h>
 
-static inline void _vjson_whitespace(const char **src, size_t *len) {
-	while (*len && strchr(" \t\n", **src)) {
+static inline void _vjson_whitespace(const char **src, const char *end) {
+	while (*src < end && strchr(" \t\n", **src)) {
 		++*src;
-		--*len;
 	}
 }
 
-static _Bool _vjson_keyword(const char **src, size_t *len, const char *kw) {
+static _Bool _vjson_keyword(const char **src, const char *end, const char *kw) {
 	size_t kwlen = strlen(kw);
-	if (*len < kwlen) return 0;
+	if (*src + kwlen >= end) return 0;
 	if (strncmp(*src, kw, kwlen)) return 0;
 
 	*src += kwlen;
-	*len -= kwlen;
 	return 1;
 }
 
@@ -97,32 +95,28 @@ static int _vjson_utf8_len(unsigned long cp) {
 	return 1;
 }
 
-static enum vjson_type _vjson_string(const char **src, size_t *len, char **val) {
+static enum vjson_type _vjson_string(const char **src, const char *end, char **val) {
 	if (**src != '"') return VJSON_ERROR;
 	++*src;
-	if (len) --*len;
 
 	size_t slen = 0;
 	const char *start = *src;
 
 	while (**src != '"') {
-		if (len && !*len) return VJSON_ERROR;
+		if (end && start >= end) return VJSON_ERROR;
 
 		if (**src == '\\') {
 			++*src;
-			if (len) --*len;
 
 			if (**src == 'u') {
 				++*src;
-				if (len) --*len;
 
-				char *end;
-				long cp = strtol(*src, &end, 16);
-				if (*src == end) return VJSON_ERROR;
-				size_t cp_strlen = end - *src - 1;
+				char *cpend;
+				long cp = strtol(*src, &cpend, 16);
+				if (*src == cpend) return VJSON_ERROR;
+				size_t cp_strlen = cpend - *src - 1;
 
 				*src += cp_strlen;
-				if (len) *len -= cp_strlen;
 
 				size_t cplen = _vjson_utf8_len(cp);
 				if (!cplen) return VJSON_ERROR;
@@ -132,13 +126,11 @@ static enum vjson_type _vjson_string(const char **src, size_t *len, char **val) 
 		}
 
 		++*src;
-		if (len) --*len;
 		++slen;
 	}
 
 	// Skip ending quote
 	++*src;
-	if (len) --*len;
 
 	if (val) {
 		char *p = malloc(slen + 1);
@@ -170,9 +162,9 @@ static enum vjson_type _vjson_string(const char **src, size_t *len, char **val) 
 					break;
 
 				case 'u':;
-					char *end;
-					long cp = strtol(start + 1, &end, 16);
-					start = end - 1;
+					char *cpend;
+					long cp = strtol(start + 1, &cpend, 16);
+					start = cpend - 1;
 
 					// Encode codepoint as UTF-8
 					size_t cplen = _vjson_utf8_len(cp);
@@ -200,39 +192,37 @@ static enum vjson_type _vjson_string(const char **src, size_t *len, char **val) 
 	return VJSON_STRING;
 }
 
-static _Bool _vjson_delimited(const char **src, size_t *len, char start, char end) {
-	_vjson_whitespace(src, len);
-	if (!*len) return 0;
-	if (**src != start) return 0;
+static _Bool _vjson_delimited(const char **src, const char *end, char sdelim, char edelim) {
+	_vjson_whitespace(src, end);
+	if (*src >= end) return 0;
+	if (**src != sdelim) return 0;
 
 	// Skip starting delimiter
 	++*src;
-	--*len;
 
 	unsigned level = 1;
 	while (level) {
-		if (!*len) return 0;
+		if (*src >= end) return 0;
 
 		if (**src == '"') {
-			vjson_string(src, len);
+			vjson_string(src, end);
 		} else {
-			if (**src == start) {
+			if (**src == sdelim) {
 				level++;
-			} else if (**src == end) {
+			} else if (**src == edelim) {
 				level--;
 			}
 
 			++*src;
-			--*len;
 		}
 	}
 
 	return 1;
 }
 
-enum vjson_type vjson_value(const char **src, size_t *len) {
-	_vjson_whitespace(src, len);
-	if (!*len) return VJSON_EOF;
+enum vjson_type vjson_value(const char **src, const char *end) {
+	_vjson_whitespace(src, end);
+	if (*src >= end) return VJSON_EOF;
 
 	switch (**src) {
 	case '-':
@@ -246,54 +236,52 @@ enum vjson_type vjson_value(const char **src, size_t *len) {
 	case '7':
 	case '8':
 	case '9':
-		return vjson_number(src, len);
+		return vjson_number(src, end);
 
 	case 't':
 	case 'f':
-		return vjson_bool(src, len);
+		return vjson_bool(src, end);
 
 	case 'n':
-		return vjson_null(src, len);
+		return vjson_null(src, end);
 
 	case '"':
-		return vjson_string(src, len);
+		return vjson_string(src, end);
 
 	case '[':
-		return vjson_array(src, len);
+		return vjson_array(src, end);
 
 	case '{':
-		return vjson_object(src, len);
+		return vjson_object(src, end);
 	}
 
 	return VJSON_ERROR;
 }
 
-enum vjson_type vjson_key(const char **src, size_t *len) {
-	enum vjson_type t = vjson_string(src, len);
+enum vjson_type vjson_key(const char **src, const char *end) {
+	enum vjson_type t = vjson_string(src, end);
 	if (t == VJSON_ERROR || t == VJSON_EOF) return t;
 
-	_vjson_whitespace(src, len);
-	if (!*len) return VJSON_EOF;
+	_vjson_whitespace(src, end);
+	if (*src >= end) return VJSON_EOF;
 
 	if (**src != ':') return VJSON_ERROR;
 	++*src;
-	--*len;
 
 	return t;
 }
 
-enum vjson_type vjson_item(const char **src, size_t *len) {
-	enum vjson_type t = vjson_value(src, len);
+enum vjson_type vjson_item(const char **src, const char *end) {
+	enum vjson_type t = vjson_value(src, end);
 	if (t == VJSON_ERROR || t == VJSON_EOF) return t;
 
-	_vjson_whitespace(src, len);
-	if (!*len) return VJSON_EOF;
+	_vjson_whitespace(src, end);
+	if (*src >= end) return VJSON_EOF;
 
 	if (**src == ',') {
 		++*src;
-		--*len;
 
-		_vjson_whitespace(src, len);
+		_vjson_whitespace(src, end);
 	} else if (**src != ']' && **src != '}') {
 		return VJSON_ERROR;
 	}
@@ -301,46 +289,45 @@ enum vjson_type vjson_item(const char **src, size_t *len) {
 	return t;
 }
 
-enum vjson_type vjson_number(const char **src, size_t *len) {
-	_vjson_whitespace(src, len);
-	if (!*len) return VJSON_ERROR;
+enum vjson_type vjson_number(const char **src, const char *end) {
+	_vjson_whitespace(src, end);
+	if (*src >= end) return VJSON_ERROR;
 
-	char *end;
-	strtold(*src, &end);
-	if (end == *src) return VJSON_ERROR;
-	*len -= end - *src;
-	*src = end;
+	char *nend;
+	strtold(*src, &nend);
+	if (nend == *src) return VJSON_ERROR;
+	*src = nend;
 
 	return VJSON_NUMBER;
 }
 
-enum vjson_type vjson_bool(const char **src, size_t *len) {
-	_vjson_whitespace(src, len);
+enum vjson_type vjson_bool(const char **src, const char *end) {
+	_vjson_whitespace(src, end);
 
-	if (_vjson_keyword(src, len, "true")) return VJSON_BOOL;
-	if (_vjson_keyword(src, len, "false")) return VJSON_BOOL;
+	if (_vjson_keyword(src, end, "true")) return VJSON_BOOL;
+	if (_vjson_keyword(src, end, "false")) return VJSON_BOOL;
 	return VJSON_ERROR;
 }
 
-enum vjson_type vjson_null(const char **src, size_t *len) {
-	_vjson_whitespace(src, len);
+enum vjson_type vjson_null(const char **src, const char *end) {
+	_vjson_whitespace(src, end);
 
-	if (_vjson_keyword(src, len, "null")) return VJSON_NULL;
+	if (_vjson_keyword(src, end, "null")) return VJSON_NULL;
 	return VJSON_ERROR;
 }
 
-enum vjson_type vjson_string(const char **src, size_t *len) {
-	_vjson_whitespace(src, len);
-	if (!*len) return VJSON_ERROR;
-	return _vjson_string(src, len, NULL);
+enum vjson_type vjson_string(const char **src, const char *end) {
+	_vjson_whitespace(src, end);
+	if (*src >= end) return VJSON_ERROR;
+	return _vjson_string(src, end, NULL);
 }
 
-enum vjson_type vjson_array(const char **src, size_t *len) {
-	return _vjson_delimited(src, len, '[', ']') ? VJSON_ARRAY : VJSON_ERROR;
+enum vjson_type vjson_array(const char **src, const char *end) {
+	return _vjson_delimited(src, end, '[', ']') ? VJSON_ARRAY : VJSON_ERROR;
 }
 
-enum vjson_type vjson_object(const char **src, size_t *len) {
-	return _vjson_delimited(src, len, '{', '}') ? VJSON_OBJECT : VJSON_ERROR;
+enum vjson_type vjson_object(const char **src, const char *end) {
+	return _vjson_delimited(src, end, '{', '}') ? VJSON_OBJECT : VJSON_ERROR;
 }
 
 const char *vjson_enter(const char *src) {
