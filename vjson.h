@@ -45,12 +45,18 @@ enum vjson_type {
 };
 
 enum vjson_type vjson_value(const char **src, size_t *len);
+enum vjson_type vjson_key(const char **src, size_t *len);
+enum vjson_type vjson_item(const char **src, size_t *len);
+
 enum vjson_type vjson_number(const char **src, size_t *len);
 enum vjson_type vjson_bool(const char **src, size_t *len);
 enum vjson_type vjson_null(const char **src, size_t *len);
 enum vjson_type vjson_string(const char **src, size_t *len);
 enum vjson_type vjson_array(const char **src, size_t *len);
 enum vjson_type vjson_object(const char **src, size_t *len);
+
+// Skip the opening delimiter of an array or object
+const char *vjson_enter(const char *src);
 
 long double vjson_get_number(const char *src);
 _Bool vjson_get_bool(const char *src);
@@ -65,7 +71,7 @@ char *vjson_get_string(const char *src);
 #include <string.h>
 
 static inline void _vjson_whitespace(const char **src, size_t *len) {
-	while (len && strchr(" \t\n", **src)) {
+	while (*len && strchr(" \t\n", **src)) {
 		++*src;
 		--*len;
 	}
@@ -219,10 +225,6 @@ static _Bool _vjson_delimited(const char **src, size_t *len, char start, char en
 		}
 	}
 
-	// Skip ending delimiter
-	++*src;
-	--*len;
-
 	return 1;
 }
 
@@ -262,6 +264,39 @@ enum vjson_type vjson_value(const char **src, size_t *len) {
 	}
 
 	return VJSON_ERROR;
+}
+
+enum vjson_type vjson_key(const char **src, size_t *len) {
+	enum vjson_type t = vjson_string(src, len);
+	if (t == VJSON_ERROR || t == VJSON_EOF) return t;
+
+	_vjson_whitespace(src, len);
+	if (!*len) return VJSON_EOF;
+
+	if (**src != ':') return VJSON_ERROR;
+	++*src;
+	--*len;
+
+	return t;
+}
+
+enum vjson_type vjson_item(const char **src, size_t *len) {
+	enum vjson_type t = vjson_value(src, len);
+	if (t == VJSON_ERROR || t == VJSON_EOF) return t;
+
+	_vjson_whitespace(src, len);
+	if (!*len) return VJSON_EOF;
+
+	if (**src == ',') {
+		++*src;
+		--*len;
+
+		_vjson_whitespace(src, len);
+	} else if (**src != ']' && **src != '}') {
+		return VJSON_ERROR;
+	}
+
+	return t;
 }
 
 enum vjson_type vjson_number(const char **src, size_t *len) {
@@ -306,7 +341,15 @@ enum vjson_type vjson_object(const char **src, size_t *len) {
 	return _vjson_delimited(src, len, '{', '}') ? VJSON_OBJECT : VJSON_ERROR;
 }
 
+const char *vjson_enter(const char *src) {
+	while (strchr(" \t\n", *src)) src++;
+	src++;
+	while (strchr(" \t\n", *src)) src++;
+	return src;
+}
+
 long double vjson_get_number(const char *src) {
+	while (strchr(" \t\n", *src)) src++;
 	return strtold(src, NULL);
 }
 
