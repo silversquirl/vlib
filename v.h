@@ -82,7 +82,7 @@
 
 #define _v_message(class, color, file, func, line, fmt, ...) fprintf(stderr, FG(color) "  %s:%d  (%s)\t " FGB(color) class SGR0 fmt "%c", file, line, func, __VA_ARGS__)
 #define _v_panic(...) (_v_message(__VA_ARGS__), _v_abort())
-#define panic(...) _v_panic("PANIC:  ", RED, __FILE__, __func__, __LINE__, __VA_ARGS__, '\n');
+#define panic(...) _v_panic("PANIC:  ", RED, __FILE__, __func__, __LINE__, __VA_ARGS__, '\n')
 
 #ifdef RELEASE
 #	define TODO _Pragma("GCC error \"TODO while compiling in release mode\"") _v_ERROR_TODO_IN_RELEASE_MODE
