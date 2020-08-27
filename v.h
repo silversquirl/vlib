@@ -33,6 +33,7 @@
 #define V_H
 
 // Some useful headers
+#include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
 #include <limits.h>
@@ -135,26 +136,31 @@
 
 // Type-safeish casts {{{
 // Safeishly cast a pointer to void *
-#define ptrcast(p) ((struct {void *v}){p}.v)
+#define ptrcast(p) ((struct {void *v;}){p}.v)
+// Safeishly remove `const` from a pointer
+#define unconst(p) ((void *)(struct {const void *v;}){p}.v)
 // }}}
 
 #define _v_alignup(x, a) (~(~x+1 & ~a+1) + 1)
 
-#ifdef MAP_ANONYMOUS
 static inline void *pagealloc(size_t size) {
 	size_t pgsiz = sysconf(_SC_PAGESIZE);
 	size = _v_alignup(size, pgsiz);
-	return mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-}
-#elif __STDC_VERSION__ >= 201112L
-static inline void *pagealloc(size_t size) {
-	size_t pgsiz = sysconf(_SC_PAGESIZE);
-	size = _v_alignup(size, pgsiz);
+#if __STDC_VERSION__ >= 201112L
 	return aligned_alloc(pgsiz, size);
-}
+#elif _POSIX_C_SOURCE >= 200112L
+	void *mem;
+	int err = posix_memalign(&mem, pgsiz, size)
+	if (err) {
+		errno = err;
+		return NULL;
+	}
+	return mem;
 #else
 #	define pagealloc(size) _Pragma("GCC error \"No implementation for pagealloc on this platform\"") _v_ERROR_UNSUPPORTED_PLATFORM
+	abort();
 #endif
+}
 
 static inline void *mapfile(const char *fn, size_t *len) {
 	int fd = open(fn, O_RDONLY);
