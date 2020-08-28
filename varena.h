@@ -34,6 +34,8 @@
 #ifndef VARENA_H
 #define VARENA_H
 
+#include <stddef.h>
+
 struct varena *varena_new(void);
 void varena_free(struct varena *arena);
 void *aalloc(struct varena **arena, size_t size);
@@ -42,7 +44,6 @@ void *aalloc(struct varena **arena, size_t size);
 
 #ifdef VARENA_IMPL
 
-#include <stddef.h>
 #include <stdlib.h>
 
 struct varena {

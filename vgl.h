@@ -390,7 +390,7 @@ GLFWwindow *vgl_init1(struct vgl_window_options opts) {
 	glfwWindowHint(GLFW_SAMPLES, opts.msaa);
 	glfwWindowHint(GLFW_RESIZABLE, opts.resizable);
 
-	GLFWwindow *win = glfwCreateWindow(opts.width, opts.height, opts.title, NULL, NULL);;
+	GLFWwindow *win = glfwCreateWindow(opts.width, opts.height, opts.title, NULL, NULL);
 	if (!win) {
 		glfwTerminate();
 		return NULL;
