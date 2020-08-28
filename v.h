@@ -141,7 +141,7 @@
 #define unconst(p) ((void *)(struct {const void *v;}){p}.v)
 // }}}
 
-#define _v_alignup(x, a) (~(~x+1 & ~a+1) + 1)
+#define _v_alignup(x, a) (~(~(x)+1 & ~(a)+1) + 1)
 
 static inline void *pagealloc(size_t size) {
 	size_t pgsiz = sysconf(_SC_PAGESIZE);

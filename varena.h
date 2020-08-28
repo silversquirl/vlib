@@ -45,19 +45,34 @@ void *aalloc(struct varena **arena, size_t size);
 
 #include <stdlib.h>
 
+#if __STDC_VERSION__ < 201112L
+// This is a guess, but will be correct on most systems
+#include <stdint.h>
+typedef union {long double f; uintmax_t i;} max_align_t;
+#endif
+
+#define _varena_ceildiv(num, div) (((num) - 1) / (div) + 1)
+
 struct varena {
 	unsigned p, size;
 	struct varena *prev;
-	unsigned char data[];
+	max_align_t data[];
 };
 
-struct varena *varena_new(size_t size) {
-	struct varena *arena = malloc(size);
+static struct varena *_varena_new(unsigned size) {
+	struct varena *arena = malloc(offsetof(struct varena, data) + size*sizeof (max_align_t));
 	if (!arena) return NULL;
-	arena->p = offsetof(struct varena, data);
+	arena->p = 0;
 	arena->size = size;
 	arena->prev = NULL;
 	return arena;
+}
+
+struct varena *varena_new(size_t size) {
+	size -= offsetof(struct varena, data);
+	size = _varena_ceildiv(size, sizeof (max_align_t));
+	if ((unsigned)size != size) return NULL;
+	return _varena_new(size);
 }
 
 void varena_free(struct varena *arena) {
@@ -69,22 +84,20 @@ void varena_free(struct varena *arena) {
 	}
 }
 
-static inline _Bool _varena_ok(struct varena *arena, size_t size) {
-	return arena->p + size <= arena->size;
-}
-
 void *aalloc(struct varena **arena, size_t size) {
-	if (size > (*arena)->size - offsetof(struct varena, data)) {
+	size = _varena_ceildiv(size, sizeof (max_align_t));
+
+	if (size > (*arena)->size) {
 		return NULL;
 	}
 
-	if (!_varena_ok(*arena, size)) {
-		struct varena *a = varena_new((*arena)->size);
+	if ((*arena)->p + size > (*arena)->size) {
+		struct varena *a = _varena_new((*arena)->size);
 		if (!a) return NULL;
 
-		a->prev = (*arena);
-		(*arena) = a;
-		if (!_varena_ok(*arena, size)) return NULL;
+		a->prev = *arena;
+		*arena = a;
+		if ((*arena)->p + size > (*arena)->size) return NULL;
 	}
 
 	void *mem = (*arena)->data + (*arena)->p;
