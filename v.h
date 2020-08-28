@@ -187,6 +187,7 @@ typedef unsigned char ubyte;
 // TODO: overflow detection
 #define maken(count, type_or_val) malloc(count * sizeof (type_or_val))
 #define makev(type, field, count) malloc(offsetof(type, field) + count*sizeof (*(type){}.field))
+#define makez(type_or_val) calloc(1, sizeof (type_or_val))
 #define makenz(count, type_or_val) calloc(count, sizeof (type_or_val))
 #define makevz(type, field, count) calloc(1, offsetof(type, field) + count*sizeof (*(type){}.field))
 
