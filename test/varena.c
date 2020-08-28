@@ -3,7 +3,7 @@
 #include "../varena.h"
 
 VTEST(test_allocation) {
-	struct varena *arena = varena_new();
+	struct varena *arena = varena_new(4096);
 	vassert_not_null(arena);
 
 	vassert_not_null(aalloc(&arena, 100));
@@ -12,7 +12,7 @@ VTEST(test_allocation) {
 }
 
 VTEST(test_large_allocation) {
-	struct varena *arena = varena_new();
+	struct varena *arena = varena_new(4096);
 	vassert_not_null(arena);
 
 	vassert_null(aalloc(&arena, 100000));
@@ -21,7 +21,7 @@ VTEST(test_large_allocation) {
 }
 
 VTEST(test_multiple_allocations) {
-	struct varena *arena = varena_new();
+	struct varena *arena = varena_new(4096);
 	vassert_not_null(arena);
 
 	for (int i = 0; i < 100; i++) {
@@ -32,7 +32,7 @@ VTEST(test_multiple_allocations) {
 }
 
 VTEST(test_multiple_large_allocations) {
-	struct varena *arena = varena_new();
+	struct varena *arena = varena_new(4096);
 	vassert_not_null(arena);
 
 	for (int i = 0; i < 100; i++) {

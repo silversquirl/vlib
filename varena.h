@@ -2,7 +2,6 @@
  *
  * A simple arena-based allocator.
  * Define VARENA_IMPL in one translation unit.
- * To change the arena size, define VARENA_SIZE.
  */
 
 /*
@@ -36,7 +35,7 @@
 
 #include <stddef.h>
 
-struct varena *varena_new(void);
+struct varena *varena_new(size_t size);
 void varena_free(struct varena *arena);
 void *aalloc(struct varena **arena, size_t size);
 
@@ -47,19 +46,16 @@ void *aalloc(struct varena **arena, size_t size);
 #include <stdlib.h>
 
 struct varena {
-	unsigned char *p;
+	unsigned p, size;
 	struct varena *prev;
 	unsigned char data[];
 };
 
-#ifndef VARENA_SIZE
-#define VARENA_SIZE 4096
-#endif
-
-struct varena *varena_new(void) {
-	struct varena *arena = malloc(VARENA_SIZE);
+struct varena *varena_new(size_t size) {
+	struct varena *arena = malloc(size);
 	if (!arena) return NULL;
-	arena->p = arena->data;
+	arena->p = offsetof(struct varena, data);
+	arena->size = size;
 	arena->prev = NULL;
 	return arena;
 }
@@ -74,16 +70,16 @@ void varena_free(struct varena *arena) {
 }
 
 static inline _Bool _varena_ok(struct varena *arena, size_t size) {
-	return arena->p + size <= (unsigned char *)arena + VARENA_SIZE;
+	return arena->p + size <= arena->size;
 }
 
 void *aalloc(struct varena **arena, size_t size) {
-	if (size > VARENA_SIZE - offsetof(struct varena, data)) {
+	if (size > (*arena)->size - offsetof(struct varena, data)) {
 		return NULL;
 	}
 
 	if (!_varena_ok(*arena, size)) {
-		struct varena *a = varena_new();
+		struct varena *a = varena_new((*arena)->size);
 		if (!a) return NULL;
 
 		a->prev = (*arena);
@@ -91,7 +87,7 @@ void *aalloc(struct varena **arena, size_t size) {
 		if (!_varena_ok(*arena, size)) return NULL;
 	}
 
-	void *mem = (*arena)->p;
+	void *mem = (*arena)->data + (*arena)->p;
 	(*arena)->p += size;
 	return mem;
 }
