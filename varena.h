@@ -99,6 +99,7 @@ int varena_register_malloced(struct varena *arena, void *p) {
 }
 
 #if defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L
+#include <sys/mman.h>
 int varena_register_mmapped(struct varena *arena, void *p, size_t len) {
 	if (!len) return -1;
 	return _varena_register(arena, p, len);
