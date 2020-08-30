@@ -38,7 +38,7 @@
 struct varena *varena_new(size_t size);
 void varena_free(struct varena *arena);
 int varena_register_malloced(struct varena *arena, void *p);
-#if defined(POSIX_C_SOURCE) && POSIX_C_SOURCE >= 200112L
+#if defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L
 int varena_register_mmapped(struct varena *arena, void *p, size_t len);
 #endif
 void *aalloc(struct varena **arena, size_t size);
@@ -98,7 +98,7 @@ int varena_register_malloced(struct varena *arena, void *p) {
 	return _varena_register(arena, p, 0);
 }
 
-#if defined(POSIX_C_SOURCE) && POSIX_C_SOURCE >= 200112L
+#if defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L
 int varena_register_mmapped(struct varena *arena, void *p, size_t len) {
 	if (!len) return -1;
 	return _varena_register(arena, p, len);
@@ -112,7 +112,7 @@ void varena_free(struct varena *arena) {
 			if (!arena->size) {
 				free(*(void **)arena->data);
 			} else {
-#if defined(POSIX_C_SOURCE) && POSIX_C_SOURCE >= 200112L
+#if defined(_POSIX_C_SOURCE) && _POSIX_C_SOURCE >= 200112L
 				munmap(*(void **)arena->data, arena->size);
 #endif
 			}
