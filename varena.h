@@ -37,6 +37,10 @@
 
 struct varena *varena_new(size_t size);
 void varena_free(struct varena *arena);
+int varena_register_malloced(struct varena *arena, void *p);
+#if defined(POSIX_C_SOURCE) && POSIX_C_SOURCE >= 200112L
+int varena_register_mmapped(struct varena *arena, void *p, size_t len);
+#endif
 void *aalloc(struct varena **arena, size_t size);
 
 #endif
@@ -53,6 +57,10 @@ typedef union {long double f; uintmax_t i;} max_align_t;
 
 #define _varena_ceildiv(num, div) (((num) - 1) / (div) + 1)
 
+// For all blocks not in use, block type is encoded like this:
+//  p != 0, any size  - Normal block, no extra work  needed
+//  p == 0, size == 0 - `data` stores a pointer to a malloced area, which must be freed
+//  p == 0, size != 0 - `data` stores a pointer to a mmapped area, which must be munmapped
 struct varena {
 	unsigned p, size;
 	struct varena *prev;
@@ -75,9 +83,41 @@ struct varena *varena_new(size_t size) {
 	return _varena_new(size);
 }
 
+static int _varena_register(struct varena *arena, void *p, size_t len) {
+	struct varena *node = malloc(offsetof(struct varena, data) + sizeof p);
+	if (!node) return -1;
+	node->size = len;
+	*(void **)node->data = p;
+
+	node->prev = arena->prev;
+	arena->prev = node;
+	return 0;
+}
+
+int varena_register_malloced(struct varena *arena, void *p) {
+	return _varena_register(arena, p, 0);
+}
+
+#if defined(POSIX_C_SOURCE) && POSIX_C_SOURCE >= 200112L
+int varena_register_mmapped(struct varena *arena, void *p, size_t len) {
+	if (!len) return -1;
+	return _varena_register(arena, p, len);
+}
+#endif
+
 void varena_free(struct varena *arena) {
 	struct varena *prev;
 	while (arena) {
+		if (!arena->p) {
+			if (!arena->size) {
+				free(*(void **)arena->data);
+			} else {
+#if defined(POSIX_C_SOURCE) && POSIX_C_SOURCE >= 200112L
+				munmap(*(void **)arena->data, arena->size);
+#endif
+			}
+		}
+
 		prev = arena->prev;
 		free(arena);
 		arena = prev;
@@ -85,10 +125,15 @@ void varena_free(struct varena *arena) {
 }
 
 void *aalloc(struct varena **arena, size_t size) {
+	if (!size) return NULL;
+
 	size = _varena_ceildiv(size, sizeof (max_align_t));
 
 	if (size > (*arena)->size) {
-		return NULL;
+		void *p = malloc(size);
+		if (!p) return NULL;
+		varena_register_malloced(*arena, p);
+		return p;
 	}
 
 	if ((*arena)->p + size > (*arena)->size) {

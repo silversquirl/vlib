@@ -15,7 +15,7 @@ VTEST(test_large_allocation) {
 	struct varena *arena = varena_new(4096);
 	vassert_not_null(arena);
 
-	vassert_null(aalloc(&arena, 100000));
+	vassert_not_null(aalloc(&arena, 100000));
 
 	varena_free(arena);
 }
@@ -36,7 +36,7 @@ VTEST(test_multiple_large_allocations) {
 	vassert_not_null(arena);
 
 	for (int i = 0; i < 100; i++) {
-		vassert_null(aalloc(&arena, 100000));
+		vassert_not_null(aalloc(&arena, 100000));
 		vassert_not_null(aalloc(&arena, 100));
 	}
 
