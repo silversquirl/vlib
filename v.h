@@ -175,6 +175,7 @@ static inline void *mapfile(const char *fn, size_t *len) {
 	if (len) *len = st.st_size;
 	void *mem = mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
 	close(fd);
+	if (mem == MMAP_FAILED) return NULL;
 	return mem;
 }
 
