@@ -132,7 +132,8 @@ void *aalloc(struct varena **arena, size_t size) {
 	size = _varena_ceildiv(size, sizeof (max_align_t));
 
 	if (size > (*arena)->size) {
-		void *p = malloc(size);
+		// TODO: allocate this as one block rather than two
+		void *p = malloc(size * sizeof (max_align_t));
 		if (!p) return NULL;
 		varena_register_malloced(*arena, p);
 		return p;
