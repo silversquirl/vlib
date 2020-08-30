@@ -86,6 +86,7 @@ struct varena *varena_new(size_t size) {
 static int _varena_register(struct varena *arena, void *p, size_t len) {
 	struct varena *node = malloc(offsetof(struct varena, data) + sizeof p);
 	if (!node) return -1;
+	node->p = 0;
 	node->size = len;
 	*(void **)node->data = p;
 
