@@ -46,6 +46,7 @@
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <time.h>
 #include <unistd.h>
 
 // Macro magic {{{
@@ -191,5 +192,17 @@ typedef unsigned char ubyte;
 #define makez(type_or_val) calloc(1, sizeof (type_or_val))
 #define makenz(count, type_or_val) calloc(count, sizeof (type_or_val))
 #define makevz(type, field, count) calloc(1, offsetof(type, field) + count*sizeof (*(type){}.field))
+
+#define USEC_NS (1000)
+#define MSEC_NS (1000 * USEC_NS)
+#define SECOND_NS (1000 * MSEC_NS)
+
+// Returns monotonic time in nanoseconds
+// If your machine runs for more than 584 years you may encounter an integer overflow
+static inline uint64_t nanotime(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return ts.tv_sec * 1000000000 + ts.tv_nsec;
+}
 
 #endif
