@@ -120,19 +120,19 @@
 // Color {{{
 #define SGR(n) "\x1b[" #n "m"
 #define SGR0 SGR(0)
-#define FG(color) _v_call(SGR, _v_splat(3, color))
-#define BG(color) _v_call(SGR, _v_splat(4, color))
-#define FGB(color) _v_call(SGR, _v_splat(9, color))
-#define BGB(color) _v_call(SGR, _v_splat(10, color))
+#define FG(color) _v_call(SGR, _v_splat(3, ANSI_##color))
+#define BG(color) _v_call(SGR, _v_splat(4, ANSI_##color))
+#define FGB(color) _v_call(SGR, _v_splat(9, ANSI_##color))
+#define BGB(color) _v_call(SGR, _v_splat(10, ANSI_##color))
 
-#define BLACK 0
-#define RED 1
-#define GREEN 2
-#define YELLOW 3
-#define BLUE 4
-#define MAGENTA 5
-#define CYAN 6
-#define WHITE 7
+#define ANSI_BLACK 0
+#define ANSI_RED 1
+#define ANSI_GREEN 2
+#define ANSI_YELLOW 3
+#define ANSI_BLUE 4
+#define ANSI_MAGENTA 5
+#define ANSI_CYAN 6
+#define ANSI_WHITE 7
 // }}}
 
 // Type-safeish casts {{{
