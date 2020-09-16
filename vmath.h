@@ -219,6 +219,7 @@ uint32_t vmath_rand32(struct vmath_rand *r) {
 
 uint32_t vmath_randr(struct vmath_rand *r, uint32_t min, uint32_t max) {
 	uint32_t bound = max - min + 1;
+	if (!bound) return vmath_rand32(r);
 	uint32_t thres = (~bound + 1) % bound;
 
 	uint32_t val;
