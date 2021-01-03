@@ -62,9 +62,13 @@
 // }}}
 
 // Debugging {{{
-#if defined(__has_builtin) && __has_builtin(__builtin_debugtrap)
+#ifndef __has_builtin
+#define __has_builtin(x) 0
+#endif
+
+#if __has_builtin(__builtin_debugtrap)
 #define breakpoint() __builtin_debugtrap()
-#elif __GNUC__ || (defined(__has_builtin) && __has_builtin(__builtin_trap))
+#elif __GNUC__ || __has_builtin(__builtin_trap)
 #define breakpoint() __builtin_trap()
 #else
 #define breakpoint() raise(SIGTRAP)
@@ -142,7 +146,7 @@
 #define unconst(p) ((void *)(struct {const void *v;}){p}.v)
 // }}}
 
-#define _v_alignup(x, a) (~(~(x)+1 & ~(a)+1) + 1)
+#define _v_alignup(x, a) (~((~(x)+1) & (~(a)+1)) + 1)
 
 static inline void *pagealloc(size_t size) {
 	size_t pgsiz = sysconf(_SC_PAGESIZE);
