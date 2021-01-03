@@ -41,7 +41,7 @@
 #error "VDICT_KEY undefined. This is used as the key type"
 #endif
 #ifndef VDICT_VAL
-#error "VDICT_KEY undefined. This is used as the value type"
+#error "VDICT_VAL undefined. This is used as the value type"
 #endif
 #ifndef VDICT_HASH
 #error "VDICT_HASH undefined. This is used as the key hash function (try vdict_hash_int or vdict_hash_string)"
@@ -59,10 +59,10 @@
 // Hash functions {{{
 static inline uint32_t vdict_hash_int(uint32_t x) {
 	// From https://stackoverflow.com/a/12996028
-    x = ((x >> 16) ^ x) * 0x45d9f3b;
-    x = ((x >> 16) ^ x) * 0x45d9f3b;
-    x = (x >> 16) ^ x;
-    return x;
+	x = ((x >> 16) ^ x) * 0x45d9f3b;
+	x = ((x >> 16) ^ x) * 0x45d9f3b;
+	x = (x >> 16) ^ x;
+	return x;
 }
 
 static inline uint32_t vdict_hash_string(const char *s) {
@@ -75,7 +75,7 @@ static inline uint32_t vdict_hash_string(const char *s) {
 
 // Equality functions {{{
 static inline _Bool vdict_eq_int(uint32_t a, uint32_t b) {
-    return a == b;
+	return a == b;
 }
 
 static inline _Bool vdict_eq_string(const char *a, const char *b) {
@@ -199,7 +199,6 @@ VDICT_LINK void _vdict_extern(free)(struct _vdict *d) {
 VDICT_LINK int _vdict_extern(put)(struct _vdict *d, VDICT_KEY k, VDICT_VAL v) {
 	if (2 * d->n_entry >= 1 << d->mcap_e) {
 		uint32_t *map = d->map;
-		size_t mcap = 1 << d->mcap_e;
 		d->map = calloc(1 << ++d->mcap_e, sizeof *d->map);
 		if (!d->map) {
 			d->map = map;
