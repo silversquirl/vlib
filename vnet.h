@@ -76,6 +76,7 @@ vnet_conn_t vnet_accept(vnet_listener_t listener);
 
 #include <netdb.h>
 #include <netinet/in.h>
+#include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
