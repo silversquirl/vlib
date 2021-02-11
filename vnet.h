@@ -3,7 +3,7 @@
  *
  * A nice wrapper around POSIX sockets for easier usage. Modelled on Go's net package
  *
- * It is REQUIRED to define _C_POSIX_SOURCE to 200809L or greater in order to use this library
+ * It is REQUIRED to define _POSIX_C_SOURCE to 200809L or greater in order to use this library
  *
  * Author: vktec
  */
