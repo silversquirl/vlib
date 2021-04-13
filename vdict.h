@@ -33,6 +33,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifndef VDICT_NAME
 #error "VDICT_NAME undefined. This is used as the struct name and as the function prefix"
