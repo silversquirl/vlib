@@ -148,7 +148,7 @@ static inline uint32_t _vdict_intern(hash)(struct _vdict *d, VDICT_KEY k) {
 
 // Wrap an index to be in-bounds for the specified dict
 static inline uint32_t _vdict_intern(wrap)(struct _vdict *d, uint32_t i) {
-	return i & (1 << d->mcap_e)-1;
+	return i & ((1 << d->mcap_e)-1);
 }
 
 // Get the entry of a hash table index
